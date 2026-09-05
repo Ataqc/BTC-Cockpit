@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BTC — Backtest de ta grille</title>
+<style>
+:root{
+  --bg:#f9f9f7; --panel:#fcfcfb; --panel2:#f0f2f5; --bd:#e1e0d9;
+  --tx:#0b0b0b; --tx2:#52514e; --tx3:#898781;
+  --grid:#e1e0d9; --axis:#c3c2b7;
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a;
+  --good:#0ca30c; --crit:#d03b3b; --warn:#fab219;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0d0d0d; --panel:#1a1a19; --panel2:#242422; --bd:#2c2c2a;
+    --tx:#ffffff; --tx2:#c3c2b7; --tx3:#898781;
+    --grid:#2c2c2a; --axis:#383835;
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0d0d0d; --panel:#1a1a19; --panel2:#242422; --bd:#2c2c2a;
+  --tx:#ffffff; --tx2:#c3c2b7; --tx3:#898781;
+  --grid:#2c2c2a; --axis:#383835;
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);
+  font:15px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif;padding:0 0 60px}
+.wrap{max-width:1120px;margin:0 auto;padding:0 18px}
+header{background:var(--panel);border-bottom:1px solid var(--bd);padding:20px 0;margin-bottom:22px}
+h1{font-size:19px;margin:0;font-weight:650;letter-spacing:-.01em}
+.sub{color:var(--tx3);font-size:13.5px;margin-top:5px}
+h2{font-size:12px;text-transform:uppercase;letter-spacing:.09em;color:var(--tx3);margin:0 0 14px;font-weight:650}
+.card{background:var(--panel);border:1px solid var(--bd);border-radius:12px;padding:18px 20px;margin-bottom:16px}
+button{font:inherit;font-size:14px;font-weight:550;cursor:pointer;border-radius:8px;
+  border:1px solid var(--bd);background:var(--panel2);color:var(--tx);padding:10px 18px}
+button.primary{background:var(--s1);border-color:var(--s1);color:#fff}
+button:disabled{opacity:.5;cursor:default}
+label{display:block;font-size:12.5px;color:var(--tx2);margin:0 0 5px;font-weight:550}
+select,input{width:100%;padding:8px 11px;border-radius:8px;border:1px solid var(--bd);
+  background:var(--bg);color:var(--tx);font:inherit;font-size:14px}
+.fields{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{text-align:left;padding:8px;border-bottom:1px solid var(--bd)}
+th{font-size:11.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--tx3);font-weight:600}
+td.n{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap}
+tr:last-child td{border-bottom:none}
+.hint{font-size:12.5px;color:var(--tx3);margin-top:10px;line-height:1.55}
+.note{background:var(--panel2);border-left:3px solid var(--s1);border-radius:0 8px 8px 0;
+  padding:12px 15px;font-size:13px;color:var(--tx2);margin:12px 0}
+.note.warn{border-left-color:var(--warn)}
+.heroes{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));margin-bottom:6px}
+.hero{background:var(--panel2);border-radius:10px;padding:14px 16px}
+.hero .lbl{font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--tx3);font-weight:600}
+.hero .val{font-size:27px;font-weight:700;letter-spacing:-.02em;margin-top:5px;
+  font-variant-numeric:tabular-nums}
+.hero .sub2{font-size:12px;color:var(--tx2);margin-top:3px}
+.legend{display:flex;gap:18px;flex-wrap:wrap;margin-bottom:10px;font-size:13px}
+.lg{display:flex;align-items:center;gap:7px;color:var(--tx2)}
+.sw{width:14px;height:3px;border-radius:2px;flex:none}
+#chart{width:100%;height:auto;display:block;overflow:visible}
+.tt{position:fixed;pointer-events:none;background:var(--panel);border:1px solid var(--bd);
+  border-radius:8px;padding:9px 12px;font-size:12.5px;box-shadow:0 4px 14px rgba(0,0,0,.16);
+  z-index:20;display:none;font-variant-numeric:tabular-nums}
+.tt b{display:block;margin-bottom:5px;color:var(--tx)}
+.tt .r{display:flex;justify-content:space-between;gap:14px;color:var(--tx2);padding:1px 0}
+.bar{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.spin{display:inline-block;width:13px;height:13px;border:2px solid var(--bd);
+  border-top-color:#fff;border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px}
+@keyframes sp{to{transform:rotate(360deg)}}
+.tag{display:inline-block;font-size:11.5px;font-weight:650;padding:2px 8px;border-radius:5px}
+.t-up{background:rgba(12,163,12,.14);color:var(--good)}
+.t-dn{background:rgba(208,59,59,.14);color:var(--crit)}
+.scroll{overflow-x:auto}
+</style>
+</head>
+<body>
+
+<header><div class="wrap">
+  <h1>₿ Backtest de ta grille</h1>
+  <div class="sub">Rejoue ton score, ta table d'action et ta règle de régime sur l'historique réel de Binance.</div>
+</div></header>
+
+<div class="wrap">
+
+  <div class="card">
+    <h2>Paramètres</h2>
+    <div class="fields">
+      <div>
+        <label>Période testée</label>
+        <select id="years">
+          <option value="2">2 ans</option>
+          <option value="3" selected>3 ans</option>
+          <option value="5">5 ans</option>
+        </select>
+      </div>
+      <div>
+        <label>Allocation de départ en BTC</label>
+        <select id="alloc">
+          <option value="50">50 % BTC / 50 % cash</option>
+          <option value="70" selected>70 % BTC / 30 % cash</option>
+          <option value="100">100 % BTC / 0 % cash</option>
+        </select>
+      </div>
+      <div>
+        <label>Frais par transaction</label>
+        <select id="fee">
+          <option value="0">0 %</option>
+          <option value="0.1" selected>0,1 % (Binance spot)</option>
+          <option value="0.25">0,25 %</option>
+        </select>
+      </div>
+      <div>
+        <label>Délai de carence</label>
+        <select id="cool">
+          <option value="0">Aucun — agir chaque jour</option>
+          <option value="7" selected>7 jours entre deux actions</option>
+          <option value="14">14 jours</option>
+          <option value="30">30 jours</option>
+        </select>
+      </div>
+    </div>
+    <div class="hint">Le <b>délai de carence</b> empêche la grille de redéclencher la même action tous les jours tant que le score reste dans sa zone. Sans lui, un signal qui dure deux semaines vend quatorze fois et liquide la position par tranches. Mets-le à zéro pour voir l'effet par toi-même.</div>
+    <div class="bar" style="margin-top:16px">
+      <button class="primary" id="run">Lancer le backtest</button>
+      <span id="status" style="font-size:13px;color:var(--tx2)"></span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Ce que ce backtest teste — et ce qu'il ne teste pas</h2>
+    <div class="note warn">
+      <b>Testé :</b> le score technique (RSI, MACD, structure), la table score → action, et ta règle de régime.<br>
+      <b>Non testé :</b> le gate des 7 signaux de confirmation. L'historique du funding, de l'open interest et des liquidations n'est pas disponible gratuitement au-delà de quelques semaines. Le gate ne peut donc pas être rejoué.<br>
+      <b>Non testé non plus :</b> l'horizon POSITION. Il dépend à 40 % du MVRV, qui n'a pas d'historique gratuit — le rejouer sans lui donnerait un résultat trompeur.<br>
+      <b>Conclusion :</b> ce backtest juge <b>l'horizon SWING</b>, calculé sur bougies journalières.
+    </div>
+    <div class="hint">
+      Les décisions sont prises à la clôture du jour et exécutées à l'ouverture du lendemain — jamais au cours qui a servi à décider. C'est ce qui évite de tricher avec le futur.
+    </div>
+  </div>
+
+  <div id="out"></div>
+
+</div>
+<div class="tt" id="tt"></div>
+
+<script>
+"use strict";
+var $ = function(i){ return document.getElementById(i); };
+var SPOT = ["https://api.binance.com","https://api1.binance.com","https://data-api.binance.vision"];
+
+function num(v,d){ d=(d===undefined)?2:d;
+  if(v===null||v===undefined||isNaN(v)) return "N/D";
+  return Number(v).toLocaleString("fr-FR",{minimumFractionDigits:d,maximumFractionDigits:d}); }
+function sgn(v,d){ if(v===null||isNaN(v)) return "N/D"; return (v>0?"+":"")+num(v,d); }
+
+/* ---------- indicateurs (identiques au cockpit) ---------- */
+function emaSeries(v,p){ if(v.length<p) return []; var k=2/(p+1),o=[],s=0,i;
+  for(i=0;i<p;i++) s+=v[i]; var pr=s/p; o[p-1]=pr;
+  for(i=p;i<v.length;i++){ pr=v[i]*k+pr*(1-k); o[i]=pr; } return o; }
+function rsiSeries(c,p){ p=p||14; if(c.length<p+1) return [];
+  var g=0,l=0,i,ch; for(i=1;i<=p;i++){ ch=c[i]-c[i-1]; if(ch>=0) g+=ch; else l-=ch; }
+  var ag=g/p, al=l/p, o=[]; o[p]= al===0?100:100-100/(1+ag/al);
+  for(i=p+1;i<c.length;i++){ ch=c[i]-c[i-1];
+    ag=(ag*(p-1)+(ch>0?ch:0))/p; al=(al*(p-1)+(ch<0?-ch:0))/p;
+    o[i]= al===0?100:100-100/(1+ag/al); } return o; }
+function macdSeries(c){ var f=emaSeries(c,12), s=emaSeries(c,26), line=[], i;
+  for(i=0;i<c.length;i++) line[i]=(f[i]!==undefined&&s[i]!==undefined)?f[i]-s[i]:undefined;
+  var st=line.findIndex(function(v){return v!==undefined;}); if(st<0) return null;
+  var comp=line.slice(st), sg=emaSeries(comp,9); if(!sg.length) return null;
+  var hist=[]; for(i=0;i<comp.length;i++) if(sg[i]!==undefined) hist[st+i]=comp[i]-sg[i];
+  return {hist:hist}; }
+function pctRank(a,v){ var c=a.filter(function(x){return x!==undefined&&!isNaN(x);});
+  if(c.length<30) return null;
+  return c.filter(function(x){return x<v;}).length/c.length; }
+function effRatio(c,n){ if(c.length<n+1) return null;
+  var s=c.slice(-(n+1)), net=Math.abs(s[s.length-1]-s[0]), p=0;
+  for(var i=1;i<s.length;i++) p+=Math.abs(s[i]-s[i-1]);
+  return p===0?0:net/p; }
+function regimeAt(c){ var a=effRatio(c,20), b=effRatio(c,60);
+  if(a===null) return "N/D"; if(b===null) b=a;
+  if(a>=0.35&&b>=0.35) return "TENDANCE";
+  if(a<=0.20&&b<=0.20) return "RANGE";
+  return "TRANSITION"; }
+function pivotIdx(v,k,hi){ var o=[];
+  for(var i=k;i<v.length-k;i++){ var ok=true;
+    for(var j=i-k;j<=i+k;j++){ if(j===i) continue;
+      if(hi ? v[j]>v[i] : v[j]<v[i]){ ok=false; break; } }
+    if(ok) o.push(i); }
+  return o; }
+
+/* ---------- table d'action ---------- */
+var TIERS=[
+ {min:8.5,lbl:"Vente 20-30 %",dir:"sell",mid:0.25},
+ {min:7.0,lbl:"Vente 10-15 %",dir:"sell",mid:0.125},
+ {min:5.5,lbl:"Rien",dir:"hold"},
+ {min:3.5,lbl:"Rien",dir:"hold"},
+ {min:2.0,lbl:"Achat 10-15 %",dir:"buy",mid:0.125},
+ {min:-99,lbl:"Achat 25-35 %",dir:"buy",mid:0.30}
+];
+function tierFor(s){ for(var i=0;i<TIERS.length;i++) if(s>=TIERS[i].min) return i; return 5; }
+function holdIdx(s){ return s>=5?2:3; }
+
+/* ---------- récupération de l'historique ---------- */
+function getJSON(path){
+  var i=0;
+  function go(){
+    return fetch(SPOT[i]+path).then(function(r){
+      if(!r.ok) throw new Error("HTTP "+r.status); return r.json();
+    }).catch(function(e){ i++; if(i<SPOT.length) return go(); throw e; });
+  }
+  return go();
+}
+function fetchDaily(days){
+  var need = days + 320;                     /* marge pour EMA200 et percentiles */
+  var out = [], end = Date.now();
+  function page(){
+    if(out.length >= need) return Promise.resolve(out);
+    return getJSON("/api/v3/klines?symbol=BTCUSDT&interval=1d&limit=1000&endTime="+end)
+      .then(function(k){
+        if(!k.length) return out;
+        out = k.concat(out);
+        end = k[0][0] - 1;
+        $("status").textContent = out.length + " jours récupérés…";
+        if(k.length < 1000) return out;
+        return page();
+      });
+  }
+  return page().then(function(a){
+    var now = Date.now();
+    return a.filter(function(k){ return k[6] < now; });   /* bougies clôturées seulement */
+  });
+}
+
+/* ---------- simulation ---------- */
+function simulate(kl, days, alloc, fee, cool){
+  var close = kl.map(function(k){ return parseFloat(k[4]); });
+  var open  = kl.map(function(k){ return parseFloat(k[1]); });
+  var high  = kl.map(function(k){ return parseFloat(k[2]); });
+  var low   = kl.map(function(k){ return parseFloat(k[3]); });
+  var time  = kl.map(function(k){ return k[0]; });
+  var n = close.length;
+
+  /* Indicateurs causals : calculés une fois, lus à l'instant t. */
+  var rsi = rsiSeries(close,14);
+  var mac = macdSeries(close);
+  var e20 = emaSeries(close,20), e50 = emaSeries(close,50);
+  var d20 = [], d50 = [], i;
+  for(i=0;i<n;i++){
+    if(e20[i]!==undefined) d20[i] = close[i]/e20[i]-1;
+    if(e50[i]!==undefined) d50[i] = close[i]/e50[i]-1;
+  }
+  /* Pivots calculés une fois ; à l'instant t on ne lit que ceux confirmés (index <= t-3). */
+  var PH = pivotIdx(high,3,true), PL = pivotIdx(low,3,false);
+
+  function scoreAt(t){
+    var parts = [], W = 0, S = 0;
+    var r = rsi[t];
+    if(r!==undefined){ var v=Math.max(0,Math.min(10,r/10)); S+=v*50; W+=50; parts.push(v); }
+    if(mac && mac.hist[t]!==undefined){
+      var p = pctRank(mac.hist.slice(Math.max(0,t-199),t+1), mac.hist[t]);
+      if(p!==null){ S+=p*10*30; W+=30; }
+    }
+    var sv = [];
+    [[d20],[d50]].forEach(function(a){
+      var d = a[0];
+      if(d[t]===undefined) return;
+      var q = pctRank(d.slice(Math.max(0,t-199),t+1), d[t]);
+      if(q!==null) sv.push(q*10);
+    });
+    if(sv.length){ var m=sv.reduce(function(a,b){return a+b;},0)/sv.length; S+=m*20; W+=20; }
+    return W ? S/W : null;
+  }
+  function bearDivAt(t){
+    var ph = PH.filter(function(i){ return i <= t-3 && rsi[i]!==undefined; });
+    if(ph.length < 2) return false;
+    var b = ph[ph.length-1], a = ph[ph.length-2];
+    return (b-a >= 5) && high[b] > high[a] && rsi[b] < rsi[a];
+  }
+
+  var start = Math.max(260, n - days);
+  var p0 = close[start];
+  var runs = {
+    regime: {btc:alloc/100/p0, cash:(100-alloc)/100, trades:[], eq:[], last:-1e9},
+    plain:  {btc:alloc/100/p0, cash:(100-alloc)/100, trades:[], eq:[], last:-1e9}
+  };
+  var hold = {btc:alloc/100/p0, cash:(100-alloc)/100, eq:[]};
+  var dates = [], fwd = {sell:[], buy:[]};
+
+  for(var t=start; t<n-1; t++){
+    var sc = scoreAt(t);
+    var px = open[t+1];                  /* exécution à l'ouverture du lendemain */
+    var reg = regimeAt(close.slice(0,t+1));
+    var idx = sc===null ? holdIdx(5) : tierFor(sc);
+
+    /* variante avec ta règle de régime */
+    var idxR = idx;
+    if(sc!==null && TIERS[idx].dir==="sell" && reg==="TENDANCE" && !bearDivAt(t)) idxR = holdIdx(sc);
+    if(sc!==null && TIERS[idx].dir==="buy"  && reg==="TENDANCE" && e50[t]!==undefined
+       && e20[t]!==undefined && close[t]<e50[t]) idxR = Math.max(idx-1,3);
+
+    function exec(run, id){
+      var T = TIERS[id];
+      if(T.dir!=="hold" && (t - run.last) < cool) return;   /* délai de carence */
+      if(T.dir!=="hold") run.last = t;
+      if(T.dir==="sell" && run.btc>0){
+        var q = run.btc*T.mid;
+        run.btc -= q; run.cash += q*px*(1-fee/100);
+        run.trades.push({t:time[t+1],type:"vente",px:px,qty:q,score:sc,reg:reg});
+      } else if(T.dir==="buy" && run.cash>0){
+        var c = run.cash*T.mid;
+        run.cash -= c; run.btc += c/px*(1-fee/100);
+        run.trades.push({t:time[t+1],type:"achat",px:px,qty:c,score:sc,reg:reg});
+      }
+    }
+    exec(runs.regime, idxR);
+    exec(runs.plain,  idx);
+
+    /* diagnostic : rendement des 15 jours suivants après chaque signal */
+    if(sc!==null && t+16 < n){
+      var f = (close[t+15]/close[t]-1)*100;
+      if(TIERS[idx].dir==="sell") fwd.sell.push(f);
+      if(TIERS[idx].dir==="buy")  fwd.buy.push(f);
+    }
+
+    var pc = close[t];
+    runs.regime.eq.push(runs.regime.btc*pc + runs.regime.cash);
+    runs.plain.eq.push(runs.plain.btc*pc + runs.plain.cash);
+    hold.eq.push(hold.btc*pc + hold.cash);
+    dates.push(time[t]);
+  }
+  return {runs:runs, hold:hold, dates:dates, fwd:fwd, from:time[start], to:time[n-1]};
+}
+
+function maxDD(e){
+  var pk = -Infinity, dd = 0;
+  for(var i=0;i<e.length;i++){ if(e[i]>pk) pk=e[i]; var d=(pk-e[i])/pk; if(d>dd) dd=d; }
+  return dd*100;
+}
+function mean(a){ return a.length ? a.reduce(function(x,y){return x+y;},0)/a.length : null; }
+
+/* ---------- rendu ---------- */
+var CH = null;
+function draw(R){
+  var A = R.runs.regime.eq, B = R.runs.plain.eq, C = R.hold.eq;
+  var base = [A[0],B[0],C[0]];
+  var nA = A.map(function(v){ return v/base[0]*100; });
+  var nB = B.map(function(v){ return v/base[1]*100; });
+  var nC = C.map(function(v){ return v/base[2]*100; });
+  var all = nA.concat(nB,nC);
+  var lo = Math.min.apply(null,all), hi = Math.max.apply(null,all);
+  var pad = (hi-lo)*0.08 || 10; lo -= pad; hi += pad;
+  var W=1000, H=380, ml=54, mr=104, mt=16, mb=34;
+  var pw = W-ml-mr, ph = H-mt-mb, n = nA.length;
+  var X = function(i){ return ml + i/(n-1)*pw; };
+  var Y = function(v){ return mt + (1-(v-lo)/(hi-lo))*ph; };
+  function path(a){ return a.map(function(v,i){ return (i?"L":"M")+X(i).toFixed(1)+" "+Y(v).toFixed(1); }).join(" "); }
+
+  var ticks = 5, gh = "";
+  for(var i=0;i<=ticks;i++){
+    var v = lo + (hi-lo)*i/ticks, y = Y(v);
+    gh += "<line x1='"+ml+"' y1='"+y.toFixed(1)+"' x2='"+(ml+pw)+"' y2='"+y.toFixed(1)+
+          "' stroke='var(--grid)' stroke-width='1'/>"+
+          "<text x='"+(ml-9)+"' y='"+(y+4).toFixed(1)+"' text-anchor='end' font-size='11' fill='var(--tx3)'>"+
+          Math.round(v)+"</text>";
+  }
+  var xt = "";
+  [0, Math.floor(n/3), Math.floor(2*n/3), n-1].forEach(function(i){
+    xt += "<text x='"+X(i).toFixed(1)+"' y='"+(H-10)+"' text-anchor='middle' font-size='11' fill='var(--tx3)'>"+
+          new Date(R.dates[i]).toLocaleDateString("fr-FR",{month:"short",year:"2-digit"})+"</text>";
+  });
+  function endLbl(a,color,txt){
+    var y = Y(a[a.length-1]);
+    return "<text x='"+(ml+pw+9)+"' y='"+(y+4).toFixed(1)+"' font-size='12' font-weight='650' fill='"+color+"'>"+
+           txt+" "+Math.round(a[a.length-1])+"</text>";
+  }
+  var svg =
+    "<svg id='chart' viewBox='0 0 "+W+" "+H+"' preserveAspectRatio='xMidYMid meet' role='img' "+
+    "aria-label='Évolution comparée du portefeuille, base 100'>"+
+    gh + xt +
+    "<line x1='"+ml+"' y1='"+(mt+ph)+"' x2='"+(ml+pw)+"' y2='"+(mt+ph)+"' stroke='var(--axis)' stroke-width='1'/>"+
+    "<path d='"+path(nC)+"' fill='none' stroke='var(--s3)' stroke-width='2' stroke-linejoin='round'/>"+
+    "<path d='"+path(nB)+"' fill='none' stroke='var(--s2)' stroke-width='2' stroke-linejoin='round'/>"+
+    "<path d='"+path(nA)+"' fill='none' stroke='var(--s1)' stroke-width='2' stroke-linejoin='round'/>"+
+    endLbl(nC,"var(--s3)","Conserver") + endLbl(nB,"var(--s2)","Sans règle") + endLbl(nA,"var(--s1)","Avec règle")+
+    "<line id='cross' x1='0' y1='"+mt+"' x2='0' y2='"+(mt+ph)+"' stroke='var(--axis)' stroke-width='1' style='display:none'/>"+
+    "<rect id='hit' x='"+ml+"' y='"+mt+"' width='"+pw+"' height='"+ph+"' fill='transparent'/>"+
+    "</svg>";
+  CH = {nA:nA,nB:nB,nC:nC,X:X,ml:ml,pw:pw,n:n,dates:R.dates};
+  return svg;
+}
+function wireHover(){
+  var svg = $("chart"), hit = document.getElementById("hit"), cross = document.getElementById("cross"), tt = $("tt");
+  if(!svg||!hit) return;
+  function move(ev){
+    var r = svg.getBoundingClientRect();
+    var sx = (ev.clientX - r.left) / r.width * 1000;
+    var i = Math.round((sx - CH.ml) / CH.pw * (CH.n-1));
+    if(i<0) i=0; if(i>CH.n-1) i=CH.n-1;
+    cross.setAttribute("x1", CH.X(i)); cross.setAttribute("x2", CH.X(i));
+    cross.style.display = "";
+    tt.style.display = "block";
+    tt.style.left = Math.min(ev.clientX+14, window.innerWidth-210)+"px";
+    tt.style.top  = (ev.clientY-10)+"px";
+    tt.innerHTML = "<b>"+new Date(CH.dates[i]).toLocaleDateString("fr-FR")+"</b>"+
+      "<div class='r'><span>Avec règle</span><span>"+num(CH.nA[i],1)+"</span></div>"+
+      "<div class='r'><span>Sans règle</span><span>"+num(CH.nB[i],1)+"</span></div>"+
+      "<div class='r'><span>Conserver</span><span>"+num(CH.nC[i],1)+"</span></div>";
+  }
+  hit.addEventListener("mousemove", move);
+  hit.addEventListener("mouseleave", function(){
+    cross.style.display="none"; $("tt").style.display="none";
+  });
+}
+
+function render(R, alloc){
+  var A=R.runs.regime, B=R.runs.plain, C=R.hold;
+  var fA=A.eq[A.eq.length-1]/A.eq[0]-1, fB=B.eq[B.eq.length-1]/B.eq[0]-1, fC=C.eq[C.eq.length-1]/C.eq[0]-1;
+  function delta(x,ref){ var d=(x-ref)*100;
+    return "<span class='tag "+(d>=0?"t-up":"t-dn")+"'>"+sgn(d,1)+" pts vs conserver</span>"; }
+
+  var h = "";
+  h += "<div class='card'><h2>Résultat</h2><div class='heroes'>";
+  h += "<div class='hero'><div class='lbl'>Ta grille, avec la règle de régime</div><div class='val' style='color:var(--s1)'>"+
+       sgn(fA*100,1)+" %</div><div class='sub2'>"+delta(fA,fC)+"</div></div>";
+  h += "<div class='hero'><div class='lbl'>Ta grille, sans la règle</div><div class='val' style='color:var(--s2)'>"+
+       sgn(fB*100,1)+" %</div><div class='sub2'>"+delta(fB,fC)+"</div></div>";
+  h += "<div class='hero'><div class='lbl'>Ne rien faire</div><div class='val' style='color:var(--s3)'>"+
+       sgn(fC*100,1)+" %</div><div class='sub2'>référence · "+alloc+" % BTC figé</div></div>";
+  h += "</div>";
+  h += "<div class='hint'>Du "+new Date(R.from).toLocaleDateString("fr-FR")+" au "+
+       new Date(R.to).toLocaleDateString("fr-FR")+". La référence garde la même allocation de départ sans jamais y toucher — c'est ce qui isole l'apport réel de tes décisions.</div>";
+  h += "</div>";
+
+  h += "<div class='card'><h2>Évolution du portefeuille (base 100)</h2>";
+  h += "<div class='legend'>"+
+       "<span class='lg'><span class='sw' style='background:var(--s1)'></span>Ta grille avec la règle de régime</span>"+
+       "<span class='lg'><span class='sw' style='background:var(--s2)'></span>Ta grille sans la règle</span>"+
+       "<span class='lg'><span class='sw' style='background:var(--s3)'></span>Ne rien faire</span></div>";
+  h += draw(R);
+  h += "<div class='hint'>Survole la courbe pour lire les trois valeurs à une date donnée.</div></div>";
+
+  h += "<div class='card'><h2>Détail chiffré</h2><div class='scroll'><table><thead><tr>"+
+       "<th>Variante</th><th style='text-align:right'>Performance</th>"+
+       "<th style='text-align:right'>Pire perte</th><th style='text-align:right'>Transactions</th>"+
+       "<th style='text-align:right'>Écart vs conserver</th></tr></thead><tbody>";
+  [["Avec la règle de régime",fA,A.eq,A.trades.length,"var(--s1)"],
+   ["Sans la règle de régime",fB,B.eq,B.trades.length,"var(--s2)"],
+   ["Ne rien faire",fC,C.eq,0,"var(--s3)"]].forEach(function(r){
+    h += "<tr><td><span class='sw' style='display:inline-block;background:"+r[4]+
+         ";margin-right:8px;vertical-align:middle'></span>"+r[0]+"</td>"+
+         "<td class='n'>"+sgn(r[1]*100,1)+" %</td>"+
+         "<td class='n'>-"+num(maxDD(r[2]),1)+" %</td>"+
+         "<td class='n'>"+r[3]+"</td>"+
+         "<td class='n'>"+sgn((r[1]-fC)*100,1)+" pts</td></tr>";
+  });
+  h += "</tbody></table></div>";
+  h += "<div class='hint'>« Pire perte » = la plus forte chute depuis un sommet du portefeuille. Une grille qui gagne un peu moins mais chute beaucoup moins peut être le meilleur choix.</div></div>";
+
+  var ms = mean(R.fwd.sell), mb = mean(R.fwd.buy);
+  h += "<div class='card'><h2>Les signaux avaient-ils une valeur prédictive ?</h2><div class='scroll'><table><thead><tr>"+
+       "<th>Signal émis</th><th style='text-align:right'>Occurrences</th>"+
+       "<th style='text-align:right'>Rendement moyen des 15 jours suivants</th>"+
+       "<th>Lecture</th></tr></thead><tbody>";
+  h += "<tr><td>Vente (score élevé)</td><td class='n'>"+R.fwd.sell.length+"</td><td class='n'>"+
+       (ms===null?"N/D":sgn(ms,2)+" %")+"</td><td style='font-size:13px'>"+
+       (ms===null?"—":(ms<0?"Le signal a bien précédé des baisses":"Le signal a précédé des hausses — il vendait trop tôt"))+"</td></tr>";
+  h += "<tr><td>Achat (score bas)</td><td class='n'>"+R.fwd.buy.length+"</td><td class='n'>"+
+       (mb===null?"N/D":sgn(mb,2)+" %")+"</td><td style='font-size:13px'>"+
+       (mb===null?"—":(mb>0?"Le signal a bien précédé des hausses":"Le signal a précédé des baisses — il achetait trop tôt"))+"</td></tr>";
+  h += "</tbody></table></div>";
+  h += "<div class='hint'>C'est le diagnostic le plus utile : il juge le signal lui-même, indépendamment des tailles de position. Un signal de vente suivi en moyenne de hausses est un signal à revoir, même si la stratégie globale gagne.</div></div>";
+
+  var T = A.trades.slice(-20).reverse();
+  h += "<div class='card'><h2>20 dernières transactions (variante avec la règle)</h2><div class='scroll'><table><thead><tr>"+
+       "<th>Date</th><th>Type</th><th style='text-align:right'>Prix</th>"+
+       "<th style='text-align:right'>Score</th><th>Régime</th></tr></thead><tbody>";
+  if(!T.length) h += "<tr><td colspan='5' style='color:var(--tx3)'>Aucune transaction : la grille n'a jamais franchi ses seuils sur la période. C'est un résultat en soi.</td></tr>";
+  T.forEach(function(t){
+    h += "<tr><td>"+new Date(t.t).toLocaleDateString("fr-FR")+"</td>"+
+         "<td><span class='tag "+(t.type==="vente"?"t-dn":"t-up")+"'>"+t.type+"</span></td>"+
+         "<td class='n'>"+num(t.px,0)+" $</td><td class='n'>"+num(t.score,2)+"</td>"+
+         "<td style='font-size:12.5px;color:var(--tx2)'>"+t.reg+"</td></tr>";
+  });
+  h += "</tbody></table></div></div>";
+
+  $("out").innerHTML = h;
+  wireHover();
+}
+
+$("run").addEventListener("click", function(){
+  var b=$("run"); b.disabled=true; b.innerHTML='<span class="spin"></span> Calcul…';
+  $("status").textContent = "récupération de l'historique…";
+  var days = parseInt($("years").value,10)*365;
+  var alloc = parseInt($("alloc").value,10);
+  var fee = parseFloat($("fee").value);
+  var cool = parseInt($("cool").value,10);
+  fetchDaily(days).then(function(kl){
+    $("status").textContent = kl.length+" bougies · simulation en cours…";
+    return new Promise(function(res){ setTimeout(function(){ res(simulate(kl,days,alloc,fee,cool)); },30); });
+  }).then(function(R){
+    render(R, alloc);
+    $("status").textContent = "";
+    b.disabled=false; b.textContent="Relancer le backtest";
+  }).catch(function(e){
+    $("out").innerHTML = "<div class='card'><div class='note warn'><b>Échec :</b> "+e.message+
+      "<br>Si tu ouvres cette page depuis un fichier local, essaie plutôt l'adresse en ligne — certains navigateurs bloquent les requêtes depuis un fichier.</div></div>";
+    $("status").textContent="";
+    b.disabled=false; b.textContent="Réessayer";
+  });
+});
+</script>
+</body>
+</html>
