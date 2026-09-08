@@ -284,9 +284,11 @@ footer{text-align:center;color:var(--tx3);font-size:12px;margin-top:30px;line-he
       <div>
         <label>Date de ce relevé</label>
         <input type="text" id="mDate" placeholder="JJ/MM/AAAA">
-        <div class="sub">Sert à signaler une donnée périmée</div>
+        <div class="sub">Remplie toute seule au premier chiffre saisi. Corrige-la si le relevé date d'un autre jour.</div>
       </div>
     </div>
+    <div id="mAgeBox" style="margin-top:14px"></div>
+    <div class="hint">Au-delà de 10 jours, ces chiffres ne sont plus utilisés : ils repassent en N/D, le score position est recalculé sans le MVRV (sur 60 % du barème) et le signal flux/on-chain devient neutre. Une donnée vieille de trois semaines n'est pas une donnée, c'est une valeur par défaut qui agit en silence.</div>
   </div>
 
   <div class="card">
@@ -389,12 +391,14 @@ function rsiSeries(closes,p){
   var g=0,l=0,i,ch;
   for(i=1;i<=p;i++){ ch = closes[i]-closes[i-1]; if(ch>=0) g+=ch; else l-=ch; }
   var ag=g/p, al=l/p, out=[];
-  out[p] = al===0 ? 100 : 100 - 100/(1+ag/al);
+  /* aucune baisse ET aucune hausse = pas de momentum du tout : c'est 50 (neutre),
+     pas 100. Renvoyer 100 sur un prix immobile déclencherait un signal de vente. */
+  out[p] = al===0 ? (ag===0 ? 50 : 100) : 100 - 100/(1+ag/al);
   for(i=p+1;i<closes.length;i++){
     ch = closes[i]-closes[i-1];
     ag = (ag*(p-1) + (ch>0?ch:0))/p;
     al = (al*(p-1) + (ch<0?-ch:0))/p;
-    out[i] = al===0 ? 100 : 100 - 100/(1+ag/al);
+    out[i] = al===0 ? (ag===0 ? 50 : 100) : 100 - 100/(1+ag/al);
   }
   return out;
 }
@@ -493,6 +497,39 @@ function parseNum(s){
   if(t==="") return null;
   var m = t.match(/-?\d+(\.\d+)?/);
   return m ? parseFloat(m[0]) : null;
+}
+
+/* ---- Péremption des métriques manuelles ----
+   Une donnée on-chain relevée il y a trois semaines n'est pas une donnée : c'est
+   une valeur par défaut silencieuse, ce que ce projet s'interdit. Au-delà de
+   MANUAL_MAX_AGE jours — ou sans date de relevé exploitable — les métriques
+   manuelles sont traitées exactement comme si elles étaient vides : N/D. */
+var MANUAL_MAX_AGE = 10;
+function parseFrDate(s){
+  if(s===null||s===undefined) return null;
+  var m = String(s).trim().match(/^(\d{1,2})[\/\-. ](\d{1,2})[\/\-. ](\d{4})$/);
+  if(!m) return null;
+  var d = parseInt(m[1],10), mo = parseInt(m[2],10), y = parseInt(m[3],10);
+  var t = Date.UTC(y, mo-1, d), chk = new Date(t);
+  /* rejette le 31/02 et consorts, que Date.UTC accepterait en débordant */
+  if(chk.getUTCDate()!==d || chk.getUTCMonth()!==mo-1 || chk.getUTCFullYear()!==y) return null;
+  return t;
+}
+/* Âge du relevé en jours. null = date absente, illisible ou dans le futur. */
+function manualAgeDays(s, now){
+  var t = parseFrDate(s);
+  if(t===null) return null;
+  var d = (now - t)/86400000;
+  return d < -1 ? null : Math.max(d, 0);
+}
+function manualAge(){ return manualAgeDays($("mDate").value, Date.now()); }
+function manualStale(){
+  var a = manualAge();
+  return a===null || a > MANUAL_MAX_AGE;
+}
+function todayFr(){
+  var d = new Date();
+  return pad(d.getDate())+"/"+pad(d.getMonth()+1)+"/"+d.getFullYear();
 }
 
 /* Rang percentile de v dans arr → 0..1. Auto-calibrant : pas de constante arbitraire. */
@@ -738,14 +775,15 @@ function gateSignals(horizon){
   S.push({n:"Fear & Greed", dir:fg, txt:fgTxt});
 
   /* 7. Flux et on-chain (saisie manuelle) */
-  var votes = [], det = [];
-  var e1 = parseNum($("mEtf1").value), e30 = parseNum($("mEtf30").value);
+  var votes = [], det = [], stale = manualStale();
+  var e1  = stale ? null : parseNum($("mEtf1").value);
+  var e30 = stale ? null : parseNum($("mEtf30").value);
   if(e1!==null){  votes.push(e1>0?"buy":"sell");  det.push("ETF jour "+sgn(e1,0)+" M$"); }
   if(e30!==null){ votes.push(e30>0?"buy":"sell"); det.push("ETF 30 j "+sgn(e30,0)+" M$"); }
-  var rv = $("mResv").value.toLowerCase();
+  var rv = stale ? "" : $("mResv").value.toLowerCase();
   if(/hauss|augment|montе|monte/.test(rv)){ votes.push("sell"); det.push("réserves en hausse"); }
   else if(/baiss|diminu|descend/.test(rv)){ votes.push("buy"); det.push("réserves en baisse"); }
-  var cb = parseNum($("mCbp").value);
+  var cb = stale ? null : parseNum($("mCbp").value);
   if(cb!==null){ votes.push(cb>0?"buy":"sell"); det.push("premium "+sgn(cb,3)); }
   var fx = null;
   if(votes.length){
@@ -753,7 +791,10 @@ function gateSignals(horizon){
     var ns = votes.length - nb;
     if(nb > ns) fx = "buy"; else if(ns > nb) fx = "sell";
   }
-  S.push({n:"Flux ETF / on-chain", dir:fx, txt: det.length ? det.join(" · ") : "N/D — champs manuels vides"});
+  S.push({n:"Flux ETF / on-chain", dir:fx,
+          txt: det.length ? det.join(" · ")
+             : (stale && manualFilled()) ? "N/D — relevé manuel périmé (> "+MANUAL_MAX_AGE+" jours) ou sans date"
+             : "N/D — champs manuels vides"});
 
   return S;
 }
@@ -898,17 +939,27 @@ function computeVerdict(){
 
   /* --- POSITION : RSI 35 % · Structure 25 % · MVRV 40 % --- */
   var mvrvZ = parseNum($("mMvrv").value);
+  /* Un MVRV périmé pèse 40 % du score position : on l'exclut plutôt que de le
+     laisser agir en silence. Il redevient N/D, les poids sont renormalisés. */
+  var mAge = manualAge(), mStale = manualStale();
+  var mvrvUsed = mStale ? null : mvrvZ;
+  var mvrvRaw;
+  if(mvrvZ===null)      mvrvRaw = "N/D — champ manuel vide";
+  else if(mAge===null)  mvrvRaw = "PÉRIMÉ — date de relevé absente ou illisible · exclu du score";
+  else if(mStale)       mvrvRaw = "PÉRIMÉ — relevé vieux de "+num(mAge,0)+" jours (limite "+
+                                  MANUAL_MAX_AGE+") · exclu du score";
+  else                  mvrvRaw = "Z = "+num(mvrvZ,2)+" · relevé du "+$("mDate").value+
+                                  " ("+num(mAge,0)+" j)";
   var poRsi = agg([{v:sRSI(B),tf:"1D"},{v:sRSI(C),tf:"1W"}]);
   V.position = weighted([
     {lbl:"RSI 1D + 1W",         w:35, v:poRsi.v, note:poRsi.note,
      raw:(B&&C)?("RSI 1D "+num(B.rsi[B.last],1)+" · 1W "+num(C.rsi[C.last],1)):"N/D"},
     {lbl:"Structure vs EMA 50/200", w:25, v:sStruct(B,[50,200]), note:null,
      raw:"écart du prix à ses moyennes longues"},
-    {lbl:"MVRV Z-score",        w:40, v:mvrvScore(mvrvZ), note:null,
-     raw: mvrvZ===null ? "N/D — champ manuel vide" : "Z = "+num(mvrvZ,2)}
+    {lbl:"MVRV Z-score",        w:40, v:mvrvScore(mvrvUsed), note:null, raw:mvrvRaw}
   ]);
 
-  var mvrvSub = mvrvScore(mvrvZ);
+  var mvrvSub = mvrvScore(mvrvUsed);
   V.mvrvSub = mvrvSub;
   V.decSwing = decide(V.swing.score, "swing", V.regime.d1, V.div.d1, {});
   V.decPos   = decide(V.position.score, "position", V.regime.w1, V.div.w1, {mvrvSub:mvrvSub});
@@ -970,7 +1021,7 @@ function verdictCard(title, sub, W, dec, regime, div){
   });
   h += "</tbody></table></div>";
   if(W.dropped && W.dropped.length)
-    h += "<div class='note warn' style='margin-top:10px'>Composante(s) exclue(s) faute de donnée : <b>"+
+    h += "<div class='note warn' style='margin-top:10px'>Composante(s) exclue(s) — donnée absente ou périmée : <b>"+
          W.dropped.join(", ")+"</b>. Les poids restants ont été renormalisés — le score est calculé sur "+
          W.W+" % du barème seulement.</div>";
   h += "</div>";
@@ -1327,21 +1378,51 @@ function renderHist(){
 }
 
 /* ---------- Bloc pour le prompt ---------- */
+var MKEYS = ["mMvrv","mReal","mEtf1","mEtf30","mResv","mCbp"];
 function manualFilled(){
-  return ["mMvrv","mReal","mEtf1","mEtf30","mResv","mCbp"].some(function(k){
-    return $(k).value.trim() !== "";
-  });
+  return MKEYS.some(function(k){ return $(k).value.trim() !== ""; });
+}
+/* Bandeau de fraîcheur, visible directement dans la carte de saisie */
+function renderManualAge(){
+  var box = $("mAgeBox");
+  if(!box) return;
+  if(!manualFilled()){
+    box.innerHTML = "<div class='note'>Aucune métrique lente saisie : elles valent N/D. Le score position "+
+                    "est alors calculé sans le MVRV, sur 60 % du barème seulement.</div>";
+    return;
+  }
+  var a = manualAge();
+  if(a===null)
+    box.innerHTML = "<div class='note warn'><b>Date de relevé absente ou illisible.</b> Format attendu : "+
+                    "JJ/MM/AAAA. Tant qu'elle manque, ces chiffres sont traités comme N/D.</div>";
+  else if(a > MANUAL_MAX_AGE)
+    box.innerHTML = "<div class='note warn'><b>Relevé périmé — "+num(a,0)+" jours</b> (limite "+
+                    MANUAL_MAX_AGE+"). Ces chiffres sont exclus des scores et du gate de confirmation. "+
+                    "Relève-les à nouveau et corrige la date.</div>";
+  else
+    box.innerHTML = "<div class='note'>Relevé du "+$("mDate").value+" — "+num(a,0)+" jours. "+
+                    "Encore valable "+num(MANUAL_MAX_AGE-a,0)+" jours.</div>";
 }
 function mv(id,suffix){
   var v = $(id).value.trim();
-  return v === "" ? "N/D" : v + (suffix||"");
+  if(v === "") return "N/D";
+  /* Périmée = inutilisable. On la montre quand même, en clair, pour que l'analyse
+     sache ce qui a été écarté — mais elle est étiquetée N/D, pas transmise comme un fait. */
+  if(manualStale())
+    return "N/D — valeur "+v+(suffix||"")+" écartée, relevé "+
+           ($("mDate").value ? "du "+$("mDate").value+" périmé" : "sans date");
+  return v + (suffix||"");
 }
 function buildBlock(){
   var now = Date.now();
   var cs = candleStatus();
-  state.manual = manualFilled()
-    ? {cls:"ok",msg:"renseignées"+($("mDate").value?" · relevé du "+$("mDate").value:"")}
-    : {cls:"ko",msg:"vides — passeront en N/D"};
+  var mAge = manualAge(), mStale = manualStale();
+  state.manual =
+    !manualFilled() ? {cls:"ko",msg:"vides — passeront en N/D"} :
+    mAge===null     ? {cls:"ko",msg:"date de relevé absente ou illisible — traitées comme N/D"} :
+    mStale          ? {cls:"ko",msg:"relevé du "+$("mDate").value+" — périmé ("+num(mAge,0)+
+                                    " j) — traitées comme N/D"} :
+                      {cls:"ok",msg:"relevé du "+$("mDate").value+" — "+num(mAge,0)+" j"};
   drawSources();
 
   var L = [];
@@ -1349,7 +1430,9 @@ function buildBlock(){
   L.push("Horodatage de génération : "+utcStr(now));
   L.push("Source technique et dérivés : Binance (API publique)");
   L.push("Source sentiment : Alternative.me");
-  L.push("Source on-chain : saisie manuelle"+($("mDate").value?" du "+$("mDate").value:" — date non précisée"));
+  L.push("Source on-chain : saisie manuelle"+
+         ($("mDate").value ? " du "+$("mDate").value+(mStale?" — PÉRIMÉE, traitée comme N/D":"")
+                           : " — date non précisée, traitée comme N/D"));
   L.push("");
   L.push("--- §0 : ANALYSE PRÉCÉDENTE (relevé automatique, vérifié sur les vraies bougies) ---");
   var H = histLoad();
@@ -1475,7 +1558,11 @@ function buildBlock(){
     L.push("Moyenne 30 jours : "+num(D.fngAvg,1)+" — "+fngTag(D.fngAvg)[0]);
   } else { L.push("N/D"); }
   L.push("");
-  L.push("--- ON-CHAIN ET FLUX (saisie manuelle"+($("mDate").value?", relevé du "+$("mDate").value:", DATE NON PRÉCISÉE — traiter comme potentiellement périmé")+") ---");
+  L.push("--- ON-CHAIN ET FLUX (saisie manuelle"+
+         (mAge===null ? ", DATE DE RELEVÉ ABSENTE OU ILLISIBLE — tout est traité comme N/D"
+          : mStale    ? ", relevé du "+$("mDate").value+" — PÉRIMÉ ("+num(mAge,0)+" jours, limite "+
+                        MANUAL_MAX_AGE+") : tout est traité comme N/D et exclu des scores"
+          :             ", relevé du "+$("mDate").value+", "+num(mAge,0)+" jours")+") ---");
   L.push("MVRV Z-score : "+mv("mMvrv"));
   L.push("Prix réalisé : "+mv("mReal"," $"));
   L.push("Flux ETF spot US — jour : "+mv("mEtf1"," M$"));
@@ -1554,7 +1641,10 @@ function buildBlock(){
   if(D.oiBtc===undefined) fast.push("OI");
   var slow = [];
   ["mMvrv","mResv","mEtf1","mCbp"].forEach(function(k,i){
-    if($(k).value.trim()==="") slow.push(["MVRV","réserves exchanges","flux ETF","Coinbase premium"][i]);
+    /* périmée = manquante : c'est le même vide, il doit compter pareil */
+    if(mStale || $(k).value.trim()==="")
+      slow.push(["MVRV","réserves exchanges","flux ETF","Coinbase premium"][i] +
+                ((mStale && $(k).value.trim()!=="") ? " (périmé)" : ""));
   });
   if(D.fngNow===undefined) slow.push("Fear & Greed");
   L.push("Métriques RAPIDES manquantes ("+fast.length+") : "+(fast.length?fast.join(", "):"aucune"));
@@ -1616,13 +1706,19 @@ $("copy").addEventListener("click", function(){
 });
 KEYS.forEach(function(k){
   $(k).addEventListener("input", function(){
+    /* Première saisie d'une métrique lente sans date : on date d'aujourd'hui.
+       Sans ça, la règle de péremption se retournerait contre lui à chaque oubli. */
+    if(MKEYS.indexOf(k) >= 0 && $(k).value.trim() !== "" && $("mDate").value.trim() === "")
+      $("mDate").value = todayFr();
     saveLocal();
+    renderManualAge();
     if(D.kd) renderVerdict();   /* MVRV et l'état de position modifient le verdict */
     buildBlock();
   });
 });
 
 loadLocal();
+renderManualAge();
 drawSources();
 loadAll();
 setInterval(function(){

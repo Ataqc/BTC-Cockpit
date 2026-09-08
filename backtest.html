@@ -165,17 +165,17 @@ function emaSeries(v,p){ if(v.length<p) return []; var k=2/(p+1),o=[],s=0,i;
   for(i=p;i<v.length;i++){ pr=v[i]*k+pr*(1-k); o[i]=pr; } return o; }
 function rsiSeries(c,p){ p=p||14; if(c.length<p+1) return [];
   var g=0,l=0,i,ch; for(i=1;i<=p;i++){ ch=c[i]-c[i-1]; if(ch>=0) g+=ch; else l-=ch; }
-  var ag=g/p, al=l/p, o=[]; o[p]= al===0?100:100-100/(1+ag/al);
+  var ag=g/p, al=l/p, o=[]; o[p]= al===0?(ag===0?50:100):100-100/(1+ag/al);
   for(i=p+1;i<c.length;i++){ ch=c[i]-c[i-1];
     ag=(ag*(p-1)+(ch>0?ch:0))/p; al=(al*(p-1)+(ch<0?-ch:0))/p;
-    o[i]= al===0?100:100-100/(1+ag/al); } return o; }
+    o[i]= al===0?(ag===0?50:100):100-100/(1+ag/al); } return o; }
 function macdSeries(c){ var f=emaSeries(c,12), s=emaSeries(c,26), line=[], i;
   for(i=0;i<c.length;i++) line[i]=(f[i]!==undefined&&s[i]!==undefined)?f[i]-s[i]:undefined;
   var st=line.findIndex(function(v){return v!==undefined;}); if(st<0) return null;
   var comp=line.slice(st), sg=emaSeries(comp,9); if(!sg.length) return null;
   var hist=[]; for(i=0;i<comp.length;i++) if(sg[i]!==undefined) hist[st+i]=comp[i]-sg[i];
   return {hist:hist}; }
-function pctRank(a,v){ var c=a.filter(function(x){return x!==undefined&&!isNaN(x);});
+function pctRank(a,v){ var c=a.filter(function(x){return x!==undefined&&x!==null&&!isNaN(x);});
   if(c.length<30) return null;
   return c.filter(function(x){return x<v;}).length/c.length; }
 function effRatio(c,n){ if(c.length<n+1) return null;

@@ -1,0 +1,12 @@
+{
+  "name": "btc-cockpit",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Tests du cockpit BTC. Les pages du projet (index.html, backtest.html) n'ont AUCUNE dependance et ne demandent aucune installation : elles s'ouvrent au double-clic. jsdom ne sert qu'a executer les tests automatiques, jamais a faire fonctionner la page.",
+  "scripts": {
+    "test": "node tests/engine.test.js && node tests/page.test.js"
+  },
+  "devDependencies": {
+    "jsdom": "^30.0.1"
+  }
+}

@@ -1,0 +1,23 @@
+name: Tests
+
+# Se déclenche tout seul à chaque modification envoyée sur GitHub.
+# Le résultat s'affiche en vert ou en rouge sur la page d'accueil du dépôt :
+# rien à installer, rien à lancer à la main.
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  tests:
+    name: Moteur de calcul et rendu de la page
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm test
