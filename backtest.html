@@ -82,7 +82,7 @@ tr:last-child td{border-bottom:none}
 
 <header><div class="wrap">
   <h1>₿ Backtest de ta grille</h1>
-  <div class="sub">Rejoue ton score, ta table d'action et ta règle de régime sur l'historique réel de Binance.</div>
+  <div class="sub">Rejoue ton score et les règles actuelles du cockpit sur l'historique réel de Binance, et les compare à la grille d'origine et au fait de ne rien faire.</div>
 </div></header>
 
 <div class="wrap">
@@ -134,7 +134,9 @@ tr:last-child td{border-bottom:none}
   <div class="card">
     <h2>Ce que ce backtest teste — et ce qu'il ne teste pas</h2>
     <div class="note warn">
-      <b>Testé :</b> le score technique (RSI, MACD, structure), la table score → action, et ta règle de régime.<br>
+      <b>Comparaison :</b> les <b>règles actuelles du cockpit</b> (aucune vente sur signal technique swing, achat réduit d'un cran en tendance baissière) contre la <b>grille d'origine</b> qui vendait sur score élevé, et contre le fait de ne rien faire.<br>
+      <b>Pourquoi les ventes swing ont été retirées :</b> ce backtest, lancé le 8 septembre 2026 sur 8 ans de bougies réelles coupées en deux périodes, a montré qu'un score de vente était suivi de rendements <b>supérieurs</b> à la moyenne du marché — sur les deux périodes. Le score mesure du momentum, pas un essoufflement. Le tableau « valeur prédictive » plus bas te le montre à chaque exécution.<br>
+      <b>Testé :</b> le score technique (RSI, MACD, structure) et la table score → action.<br>
       <b>Non testé :</b> le gate des 7 signaux de confirmation. L'historique du funding, de l'open interest et des liquidations n'est pas disponible gratuitement au-delà de quelques semaines. Le gate ne peut donc pas être rejoué.<br>
       <b>Non testé non plus :</b> l'horizon POSITION. Il dépend à 40 % du MVRV, qui n'a pas d'historique gratuit — le rejouer sans lui donnerait un résultat trompeur.<br>
       <b>Conclusion :</b> ce backtest juge <b>l'horizon SWING</b>, calculé sur bougies journalières.
@@ -241,8 +243,6 @@ function fetchDaily(days){
 function simulate(kl, days, alloc, fee, cool){
   var close = kl.map(function(k){ return parseFloat(k[4]); });
   var open  = kl.map(function(k){ return parseFloat(k[1]); });
-  var high  = kl.map(function(k){ return parseFloat(k[2]); });
-  var low   = kl.map(function(k){ return parseFloat(k[3]); });
   var time  = kl.map(function(k){ return k[0]; });
   var n = close.length;
 
@@ -255,9 +255,6 @@ function simulate(kl, days, alloc, fee, cool){
     if(e20[i]!==undefined) d20[i] = close[i]/e20[i]-1;
     if(e50[i]!==undefined) d50[i] = close[i]/e50[i]-1;
   }
-  /* Pivots calculés une fois ; à l'instant t on ne lit que ceux confirmés (index <= t-3). */
-  var PH = pivotIdx(high,3,true), PL = pivotIdx(low,3,false);
-
   function scoreAt(t){
     var parts = [], W = 0, S = 0;
     var r = rsi[t];
@@ -276,13 +273,6 @@ function simulate(kl, days, alloc, fee, cool){
     if(sv.length){ var m=sv.reduce(function(a,b){return a+b;},0)/sv.length; S+=m*20; W+=20; }
     return W ? S/W : null;
   }
-  function bearDivAt(t){
-    var ph = PH.filter(function(i){ return i <= t-3 && rsi[i]!==undefined; });
-    if(ph.length < 2) return false;
-    var b = ph[ph.length-1], a = ph[ph.length-2];
-    return (b-a >= 5) && high[b] > high[a] && rsi[b] < rsi[a];
-  }
-
   var start = Math.max(260, n - days);
   var p0 = close[start];
   var runs = {
@@ -298,9 +288,13 @@ function simulate(kl, days, alloc, fee, cool){
     var reg = regimeAt(close.slice(0,t+1));
     var idx = sc===null ? holdIdx(5) : tierFor(sc);
 
-    /* variante avec ta règle de régime */
+    /* Variante « règles actuelles du cockpit », horizon SWING :
+       - aucune vente sur signal technique. Retirée le 8 septembre 2026 après ce
+         backtest : un score de vente était suivi de hausses supérieures à la
+         moyenne, sur les deux périodes testées ;
+       - achat toujours réduit d'un cran en tendance baissière. */
     var idxR = idx;
-    if(sc!==null && TIERS[idx].dir==="sell" && reg==="TENDANCE" && !bearDivAt(t)) idxR = holdIdx(sc);
+    if(sc!==null && TIERS[idx].dir==="sell") idxR = holdIdx(sc);
     if(sc!==null && TIERS[idx].dir==="buy"  && reg==="TENDANCE" && e50[t]!==undefined
        && e20[t]!==undefined && close[t]<e50[t]) idxR = Math.max(idx-1,3);
 
@@ -387,7 +381,7 @@ function draw(R){
     "<path d='"+path(nC)+"' fill='none' stroke='var(--s3)' stroke-width='2' stroke-linejoin='round'/>"+
     "<path d='"+path(nB)+"' fill='none' stroke='var(--s2)' stroke-width='2' stroke-linejoin='round'/>"+
     "<path d='"+path(nA)+"' fill='none' stroke='var(--s1)' stroke-width='2' stroke-linejoin='round'/>"+
-    endLbl(nC,"var(--s3)","Conserver") + endLbl(nB,"var(--s2)","Sans règle") + endLbl(nA,"var(--s1)","Avec règle")+
+    endLbl(nC,"var(--s3)","Conserver") + endLbl(nB,"var(--s2)","Origine") + endLbl(nA,"var(--s1)","Actuel")+
     "<line id='cross' x1='0' y1='"+mt+"' x2='0' y2='"+(mt+ph)+"' stroke='var(--axis)' stroke-width='1' style='display:none'/>"+
     "<rect id='hit' x='"+ml+"' y='"+mt+"' width='"+pw+"' height='"+ph+"' fill='transparent'/>"+
     "</svg>";
@@ -426,9 +420,9 @@ function render(R, alloc){
 
   var h = "";
   h += "<div class='card'><h2>Résultat</h2><div class='heroes'>";
-  h += "<div class='hero'><div class='lbl'>Ta grille, avec la règle de régime</div><div class='val' style='color:var(--s1)'>"+
+  h += "<div class='hero'><div class='lbl'>Règles actuelles du cockpit</div><div class='val' style='color:var(--s1)'>"+
        sgn(fA*100,1)+" %</div><div class='sub2'>"+delta(fA,fC)+"</div></div>";
-  h += "<div class='hero'><div class='lbl'>Ta grille, sans la règle</div><div class='val' style='color:var(--s2)'>"+
+  h += "<div class='hero'><div class='lbl'>Grille d'origine, avec les ventes</div><div class='val' style='color:var(--s2)'>"+
        sgn(fB*100,1)+" %</div><div class='sub2'>"+delta(fB,fC)+"</div></div>";
   h += "<div class='hero'><div class='lbl'>Ne rien faire</div><div class='val' style='color:var(--s3)'>"+
        sgn(fC*100,1)+" %</div><div class='sub2'>référence · "+alloc+" % BTC figé</div></div>";
@@ -439,8 +433,8 @@ function render(R, alloc){
 
   h += "<div class='card'><h2>Évolution du portefeuille (base 100)</h2>";
   h += "<div class='legend'>"+
-       "<span class='lg'><span class='sw' style='background:var(--s1)'></span>Ta grille avec la règle de régime</span>"+
-       "<span class='lg'><span class='sw' style='background:var(--s2)'></span>Ta grille sans la règle</span>"+
+       "<span class='lg'><span class='sw' style='background:var(--s1)'></span>Règles actuelles du cockpit (sans vente swing)</span>"+
+       "<span class='lg'><span class='sw' style='background:var(--s2)'></span>Grille d'origine (avec les ventes)</span>"+
        "<span class='lg'><span class='sw' style='background:var(--s3)'></span>Ne rien faire</span></div>";
   h += draw(R);
   h += "<div class='hint'>Survole la courbe pour lire les trois valeurs à une date donnée.</div></div>";
@@ -449,8 +443,8 @@ function render(R, alloc){
        "<th>Variante</th><th style='text-align:right'>Performance</th>"+
        "<th style='text-align:right'>Pire perte</th><th style='text-align:right'>Transactions</th>"+
        "<th style='text-align:right'>Écart vs conserver</th></tr></thead><tbody>";
-  [["Avec la règle de régime",fA,A.eq,A.trades.length,"var(--s1)"],
-   ["Sans la règle de régime",fB,B.eq,B.trades.length,"var(--s2)"],
+  [["Règles actuelles (sans vente swing)",fA,A.eq,A.trades.length,"var(--s1)"],
+   ["Grille d'origine (avec les ventes)",fB,B.eq,B.trades.length,"var(--s2)"],
    ["Ne rien faire",fC,C.eq,0,"var(--s3)"]].forEach(function(r){
     h += "<tr><td><span class='sw' style='display:inline-block;background:"+r[4]+
          ";margin-right:8px;vertical-align:middle'></span>"+r[0]+"</td>"+
@@ -477,7 +471,7 @@ function render(R, alloc){
   h += "<div class='hint'>C'est le diagnostic le plus utile : il juge le signal lui-même, indépendamment des tailles de position. Un signal de vente suivi en moyenne de hausses est un signal à revoir, même si la stratégie globale gagne.</div></div>";
 
   var T = A.trades.slice(-20).reverse();
-  h += "<div class='card'><h2>20 dernières transactions (variante avec la règle)</h2><div class='scroll'><table><thead><tr>"+
+  h += "<div class='card'><h2>20 dernières transactions (règles actuelles)</h2><div class='scroll'><table><thead><tr>"+
        "<th>Date</th><th>Type</th><th style='text-align:right'>Prix</th>"+
        "<th style='text-align:right'>Score</th><th>Régime</th></tr></thead><tbody>";
   if(!T.length) h += "<tr><td colspan='5' style='color:var(--tx3)'>Aucune transaction : la grille n'a jamais franchi ses seuils sur la période. C'est un résultat en soi.</td></tr>";

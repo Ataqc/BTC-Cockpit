@@ -126,6 +126,8 @@ attendre().then(function(){
   ok(V.position.score >= 0 && V.position.score <= 10, "score position dans l'échelle 0-10");
   ok(["TENDANCE","RANGE","TRANSITION","N/D"].indexOf(V.regime.d1.label) >= 0,
      "le régime journalier a une valeur connue");
+  ok(win.TIERS[V.decSwing.final].dir !== "sell",
+     "invariant : l'horizon SWING ne peut jamais aboutir à une vente");
 
   /* ---------- indicateurs sur bougies clôturées uniquement ---------- */
   var maintenant = Date.now();

@@ -184,6 +184,28 @@ ok(C.TIERS[C.holdIdx(7)].dir === "hold" && C.TIERS[C.holdIdx(2)].dir === "hold",
 ok(C.softer(0) === 1, "adoucir une vente forte donne une vente modérée");
 ok(C.softer(5) === 4 && C.softer(2) === 2, "adoucir un achat le réduit ; « Rien » reste « Rien »");
 
+g("Chaîne de décision — retrait des ventes en SWING");
+var RANGE = {label:"RANGE", cls:"t-grn", er:0.1, er60:0.1};
+var TEND  = {label:"TENDANCE", cls:"t-org", er:0.5, er60:0.5};
+function texte(d){ return d.steps.join(" | "); }
+[9.2, 8.6, 7.5].forEach(function(sc){
+  var d = C.decide(sc, "swing", RANGE, {}, {});
+  ok(C.TIERS[d.final].dir !== "sell",
+     "score swing " + sc + " : aucune vente possible, quel que soit le régime");
+  ok(d.capped === true && /côté vente de la table a été retiré/.test(texte(d)),
+     "score swing " + sc + " : le blocage est signalé et motivé dans la chaîne");
+});
+ok(C.TIERS[C.decide(9.2, "swing", TEND, {bear:{bars:9}}, {}).final].dir !== "sell",
+   "même avec une divergence baissière confirmée, le swing ne vend pas");
+ok(C.TIERS[C.decide(9.2, "swing", RANGE, {}, {mvrvSub:9.5}).final].dir !== "sell",
+   "même avec un MVRV en zone de sommet, le swing ne vend pas : c'est l'affaire de POSITION");
+ok(!/côté vente de la table a été retiré/.test(texte(C.decide(9.2, "position", RANGE, {}, {}))),
+   "l'horizon POSITION n'est pas concerné par ce retrait — il n'a jamais été testé");
+ok(!/côté vente de la table a été retiré/.test(texte(C.decide(1.5, "swing", RANGE, {}, {}))),
+   "un signal d'achat en swing n'est pas touché par la règle");
+ok(C.decide(null, "swing", RANGE, {}, {}).final === null,
+   "score non calculable : action N/D, pas un repli silencieux");
+
 /* ================= 3. SAISIE ET PÉREMPTION ================= */
 
 g("Lecture des nombres à la française");

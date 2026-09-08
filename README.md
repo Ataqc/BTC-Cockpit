@@ -24,7 +24,7 @@ faire.
 
 ## Ce que la pastille verte en haut veut dire
 
-À chaque modification envoyée sur GitHub, 139 vérifications automatiques
+À chaque modification envoyée sur GitHub, 151 vérifications automatiques
 s'exécutent :
 
 - **le moteur de calcul** — chaque indicateur est confronté à une série dont on
@@ -41,6 +41,28 @@ s'exécutent :
 
 Ces tests n'utilisent que des séries **synthétiques** : ils valident les formules,
 jamais la pertinence des seuils sur le vrai marché. Seul le backtest fait ça.
+
+## Ce que le backtest a montré (8 septembre 2026)
+
+Rejoué sur 2999 jours réels de bougies Binance, coupés en deux périodes dont une
+jamais utilisée pour établir le constat :
+
+- **Le côté vente de la table d'action détruisait de la valeur.** Sur les deux
+  périodes, un score de vente était suivi de rendements *supérieurs* à la moyenne
+  du marché. Le score technique mesure du momentum ; la table s'en servait comme
+  d'un signal de retournement. **Les paliers de vente ont été retirés de l'horizon
+  SWING.** L'horizon POSITION est intact : il n'a pas pu être testé, faute
+  d'historique MVRV gratuit.
+- **La règle de régime ne s'applique que 4,4 % des jours** : le seuil de 0,35
+  d'efficience exigé sur deux fenêtres est au-delà du 90ᵉ centile observé. Bonne
+  idée, calibration à revoir — mais la desserrer donne un résultat mixte selon la
+  période, donc rien n'a été changé.
+- **Aucun seuil du §8 n'a été retouché.** Un décalage de ±1 point fait varier le
+  résultat sur 5 ans de +40 % à +63 % : tout « optimum » lu là-dedans serait du
+  bruit ajusté au passé.
+
+Ces chiffres portent sur deux périodes globalement haussières. Aucune ne teste un
+marché durablement baissier.
 
 ## Ce que le projet ne fait pas
 

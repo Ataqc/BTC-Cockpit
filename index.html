@@ -828,6 +828,22 @@ function decide(score, horizon, regime, div, opt){
     return out;
   }
 
+  /* RÈGLE ISSUE DU BACKTEST DU 8 SEPTEMBRE 2026 (§14 du briefing).
+     Sur 8 ans de bougies journalières réelles, coupées en deux périodes dont une
+     jamais utilisée pour le constat, un score de vente en SWING a été suivi de
+     rendements SUPÉRIEURS à la moyenne du marché. Le score technique swing mesure
+     du momentum, pas un essoufflement : il ne peut donc pas déclencher une vente.
+     L'horizon POSITION n'est pas concerné — il n'a pas été testé (pas d'historique
+     MVRV gratuit) et repose sur un ancrage de valorisation, pas sur du momentum. */
+  if(horizon === "swing" && dir === "sell"){
+    out.final = holdIdx(score); out.capped = true;
+    out.steps.push("SWING : le côté vente de la table a été retiré après backtest sur 8 ans "+
+      "de données réelles — un score de vente y était suivi de hausses supérieures à la "+
+      "moyenne du marché. Un score haut en swing signifie « ne pas renforcer », jamais "+
+      "« vendre ». La prise de profit relève de l'horizon POSITION.");
+    return out;
+  }
+
   /* RÈGLE DE RÉGIME — la plus importante du prompt */
   if(regime.label === "TENDANCE"){
     if(dir === "sell"){
