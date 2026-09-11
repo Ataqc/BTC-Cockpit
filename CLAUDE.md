@@ -378,6 +378,10 @@ transactions par trois.
     péremption, la bascule des onglets (par clic et par adresse), un backtest
     complet, le bilan de visite (référence conservée pendant la visite, jamais
     écrasée si les données manquent) et l'absence d'erreur JavaScript.
+  - `tests/robot.test.js` (17 vérifications, zéro dépendance) : période comparée
+    par le robot d'alerte, bougie en cours écartée, aucun palier POSITION ni
+    aucune vente, alerte réelle sur une chute synthétique, notification sans
+    balise HTML, échec franc si l'historique est trop court.
   - **Ce que les tests ne voient pas : la mise en page.** jsdom ne calcule aucune
     largeur. Toute modification d'affichage se vérifie dans un vrai navigateur à
     **390, 768, 1024 et 1280 px** : aucun tableau ne doit dépasser de sa carte, et
@@ -416,6 +420,7 @@ transactions par trois.
 - **Backtest fusionné dans le cockpit** le 11 septembre 2026 : une seule adresse,
   deux onglets, une seule copie des formules (§10). Débordements de tableaux
   corrigés à toutes les largeurs d'écran (§4)
+- **Robot d'alerte quotidien** le 11 septembre 2026 — volet B des alertes (§15)
 - **Bilan « depuis ta dernière visite »** le 11 septembre 2026 — volet A des
   alertes (§6)
 
@@ -491,16 +496,10 @@ cockpit n'applique plus.
 1. **Alertes**, en deux volets choisis le 11 septembre 2026 :
    - **A — fait** : bilan « depuis ta dernière visite » en tête du cockpit (§6).
      Toutes les données, MVRV et invalidations compris, mais il faut ouvrir la page.
-   - **B — à faire** : robot quotidien sur GitHub Actions et notification iPhone
-     via ntfy (gratuit, sans compte ; push iOS confirmé sur le serveur public
-     ntfy.sh). Il doit réutiliser les formules de la page via `tests/sandbox.js`,
-     sans les recopier. Contraintes établies : les serveurs GitHub sont aux
-     États-Unis, que Binance bloque (HTTP 451) — les bougies passeraient par
-     `data-api.binance.vision`, **à confirmer par un essai avant de construire** ;
-     funding, OI et long/short resteraient indisponibles. Le robot ne voit ni le
-     MVRV ni aucune donnée personnelle : il ne peut donc jamais annoncer une vente
-     POSITION. GitHub suspend une tâche planifiée après 60 jours sans commit dans
-     un dépôt public.
+   - **B — construit le 11 septembre 2026** (§15) : robot quotidien sur GitHub
+     Actions, notification iPhone via ntfy. Essai préalable concluant : les
+     bougies passent par `data-api.binance.vision`, les dérivés restent bloqués.
+     Il ne peut jamais annoncer une vente POSITION.
 2. **Backtest 4H** pour tester le score swing complet (aujourd'hui rejoué en
    journalier seulement). Coût : environ 11 requêtes de pagination par période.
    C'est aussi le seul moyen de savoir si le retrait des ventes (§9, étape 2) vaut
@@ -508,3 +507,49 @@ cockpit n'applique plus.
 3. **Backtest de l'horizon POSITION** si une source d'historique MVRV gratuite est
    trouvée. Tant qu'elle manque, POSITION reste la seule moitié non validée du
    système — et c'est désormais la seule qui peut déclencher une vente.
+
+---
+
+## 15. Robot d'alerte (volet B)
+
+`alertes/robot.js`, lancé par `.github/workflows/alerte-quotidienne.yml` chaque
+jour à 00:20 UTC, juste après la clôture journalière (GitHub peut retarder une
+tâche planifiée de quelques minutes à une heure).
+
+**Principe** : il charge la vraie page via `tests/sandbox.js` et fait tourner ses
+fonctions — **aucune formule recopiée**. Il compare l'état à la dernière clôture
+journalière avec l'état à la clôture précédente, avec `visitEvents`, la même
+fonction que le bilan de visite. Aucune mémoire entre deux passages, aucun commit.
+
+**Essai du 11 septembre 2026, depuis un serveur GitHub (États-Unis)** :
+
+| Source | Réponse |
+|---|---|
+| `api.binance.com`, `api1.binance.com` | 451 — bloqué |
+| `data-api.binance.vision` (bougies 1D et 4H, prix 24 h) | 200 |
+| `fapi.binance.com` (funding, open interest) | 451 — bloqué |
+| `api.alternative.me` | 200 |
+| `ntfy.sh` | en service |
+
+**Ce qu'il signale** : palier swing *candidat* (après le retrait des ventes swing,
+mais avant le gate de confirmation, illisible sans les dérivés), régime 1 J ou
+1 S, nouvelle divergence confirmée, franchissement de l'EMA 200, cassure du
+support ou de la résistance. Le message précise qu'un palier swing est candidat.
+
+**Ce qu'il ne signale jamais** : palier POSITION (il dépend du MVRV), vente,
+invalidation, relevé manuel. Ces données n'existent que dans le navigateur de
+l'utilisateur ; le robot n'en voit aucune et ne doit jamais en recevoir.
+
+**Pour que son silence veuille dire « rien de notable »** :
+- un message discret chaque lundi : « toujours en service » ;
+- si le calcul échoue, une notification le dit et l'exécution est marquée en
+  échec sur GitHub ;
+- il réactive sa propre tâche planifiée à chaque passage, contre la suspension
+  automatique après 60 jours sans activité.
+
+**Notification** : ntfy (gratuit, sans compte). Le nom du canal est stocké dans le
+secret du dépôt `NTFY_TOPIC` — **jamais dans un fichier** : dans un dépôt public,
+n'importe qui pourrait lire ou brouiller les alertes. Sans ce secret, le robot
+fait un passage à blanc : il calcule, affiche ce qu'il enverrait, n'envoie rien.
+Déclenchement manuel possible depuis l'onglet Actions du dépôt, avec l'option
+« essai » pour recevoir une notification même si rien n'a changé.

@@ -24,7 +24,7 @@ faire.
 
 ## Ce que la pastille verte en haut veut dire
 
-À chaque modification envoyée sur GitHub, 184 vérifications automatiques
+À chaque modification envoyée sur GitHub, 201 vérifications automatiques
 s'exécutent :
 
 - **le moteur de calcul** — chaque indicateur est confronté à une série dont on
@@ -35,6 +35,9 @@ s'exécutent :
   servi à décider, qu'il respecte le délai de carence, qu'il ne vend jamais sous
   les règles actuelles, et surtout qu'il ne lit pas l'avenir : couper la fin de
   l'historique ne doit pas changer un seul jour du passé ;
+- **le robot d'alerte** — sur des bougies synthétiques : il compare la bonne
+  période, ne signale jamais de palier POSITION ni de vente, et alerte vraiment
+  quand le prix s'effondre ;
 - **la page entière** — elle est chargée dans un navigateur simulé, avec un faux
   réseau, et on vérifie que tout s'affiche, que les scores restent dans l'échelle
   0-10, que les onglets basculent sans rien recharger, que le backtest tourne
@@ -67,6 +70,19 @@ jamais utilisée pour établir le constat :
 
 Ces chiffres portent sur deux périodes globalement haussières. Aucune ne teste un
 marché durablement baissier.
+
+## Alertes
+
+- **Dans la page** : le bloc « Depuis ta dernière visite », en tête du cockpit, ne
+  signale que ce qui a changé depuis ton dernier passage sur l'appareil. Il voit
+  tout, y compris tes relevés manuels et tes invalidations.
+- **Sur le téléphone** : un robot tourne chaque jour sur GitHub, peu après la
+  clôture de 00:00 UTC, et n'envoie une notification (via ntfy) que si quelque
+  chose a changé : palier swing candidat, régime, divergence, EMA 200, support ou
+  résistance. Les serveurs GitHub sont aux États-Unis, où Binance bloque ses
+  dérivés : le robot ne lit ni funding ni open interest, et ne voit aucune donnée
+  personnelle. **Il n'annonce jamais de vente.** Chaque lundi, un message discret
+  confirme qu'il tourne ; s'il échoue, il le dit.
 
 ## Ce que le projet ne fait pas
 

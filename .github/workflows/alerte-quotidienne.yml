@@ -1,0 +1,43 @@
+name: Alerte quotidienne BTC
+
+# Tourne tout seul chaque jour à 00:20 UTC, juste après la clôture journalière.
+# Ne prévient que si quelque chose a changé depuis la clôture précédente.
+# Lit uniquement des données publiques de marché. Aucune donnée personnelle.
+# Détails et limites : alertes/robot.js et CLAUDE.md.
+
+on:
+  schedule:
+    - cron: "20 0 * * *"
+  workflow_dispatch:
+    inputs:
+      essai:
+        description: "Envoyer une notification d'essai même si rien n'a changé"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  alerte:
+    name: Calculer et prévenir si quelque chose a changé
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Robot d'alerte
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          ESSAI: ${{ inputs.essai }}
+        run: node alertes/robot.js
+      # GitHub suspend une tâche planifiée après 60 jours sans activité dans un dépôt
+      # public. La réactiver à chaque passage évite qu'elle s'arrête en silence.
+      - name: Garder la tâche planifiée active
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/alerte-quotidienne.yml/enable" || true
