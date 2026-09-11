@@ -2,14 +2,13 @@
    Deux familles :
      1. identités mathématiques : ce que l'indicateur DOIT valoir sur une série dont
         on connaît la réponse à l'avance (constante, croissante, en dents de scie) ;
-     2. contrôle croisé cockpit / backtest : les deux pages contiennent chacune leur
-        copie des formules. Si elles divergent, le backtest ne valide plus le cockpit
-        mais un cousin. Ces tests échouent au premier écart.
+     2. le moteur du backtest, qui vit désormais dans la même page que le cockpit
+        et appelle ses formules : une seule copie, aucune dérive possible. On y
+        vérifie qu'il ne vend jamais sous les règles actuelles et qu'il ne lit pas l'avenir.
    ATTENTION : toutes les séries utilisées ici sont SYNTHÉTIQUES. Aucun résultat de
    ce fichier ne dit quoi que ce soit du vrai Bitcoin. */
 var sandbox = require("./sandbox.js");
 var C = sandbox.load("index.html");     /* cockpit  */
-var B = sandbox.load("backtest.html");  /* backtest */
 
 var pass = 0, fail = [], group = "";
 function g(name){ group = name; }
@@ -244,37 +243,83 @@ ok(C.mv("mMvrv").indexOf("N/D") === 0,
    "valeur périmée : transmise comme N/D au bloc d'analyse, pas comme un fait");
 C.__set("mDate", ""); C.__set("mMvrv", "");
 
-/* ================= 4. CONTRÔLE CROISÉ COCKPIT / BACKTEST ================= */
+/* ================= 4. BACKTEST — UNE SEULE COPIE, UN MOTEUR SANS TRICHE ================= */
 
-g("Cockpit contre backtest — mêmes formules");
-var S = serie(400, 777);
-[9, 12, 20, 26, 50, 200].forEach(function(p){
-  sameSeries(C.emaSeries(S, p), B.emaSeries(S, p), "EMA " + p);
+g("Une seule copie des formules");
+var fs = require("fs"), path = require("path");
+var source = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+["rsiSeries","emaSeries","macdSeries","pctRank","effRatio","pivotIdx","tierFor","holdIdx"].forEach(function(f){
+  var n = source.split("function " + f + "(").length - 1;
+  ok(n === 1, "« " + f + " » n'existe qu'une fois dans la page (trouvé " + n + " fois)");
 });
-sameSeries(C.rsiSeries(S, 14), B.rsiSeries(S, 14), "RSI 14");
-sameSeries(C.macdSeries(S).hist, B.macdSeries(S).hist, "histogramme MACD");
-ok(near(C.pctRank(S, S[200]), B.pctRank(S, S[200])), "percentile identique");
-[20, 60].forEach(function(n){
-  ok(near(C.effRatio(S, n), B.effRatio(S, n)), "ratio d'efficience sur " + n + " bougies");
-});
-[2, 3, 5].forEach(function(k){
-  ok(JSON.stringify(C.pivotIdx(S, k, true)) === JSON.stringify(B.pivotIdx(S, k, true)),
-     "sommets confirmés à " + k + " bougies");
-  ok(JSON.stringify(C.pivotIdx(S, k, false)) === JSON.stringify(B.pivotIdx(S, k, false)),
-     "creux confirmés à " + k + " bougies");
-});
-var memeRegime = true, memePalier = true;
-for(var i=100;i<S.length;i++){
-  var sl = S.slice(0, i);
-  if(C.regimeOf(sl).label !== B.regimeAt(sl)) memeRegime = false;
+ok(typeof C.regimeAt === "undefined" && typeof C.getJSON === "undefined",
+   "les anciennes copies propres au backtest (regimeAt, getJSON) ont disparu");
+var redirection = fs.readFileSync(path.join(__dirname, "..", "backtest.html"), "utf8");
+ok(/url=index\.html#backtest/.test(redirection) && redirection.indexOf("function") < 0,
+   "backtest.html ne calcule plus rien : il renvoie vers l'onglet Backtest du cockpit");
+ok(near((C.TIERS[0].lo + C.TIERS[0].hi)/200, 0.25) && near((C.TIERS[1].lo + C.TIERS[1].hi)/200, 0.125) &&
+   near((C.TIERS[4].lo + C.TIERS[4].hi)/200, 0.125) && near((C.TIERS[5].lo + C.TIERS[5].hi)/200, 0.30),
+   "la taille simulée est le milieu de la fourchette affichée par le cockpit, pas un chiffre à part");
+
+g("Backtest — simulation");
+/* Bougies journalières SYNTHÉTIQUES au format Binance. Ce n'est pas un cours réel :
+   ces tests vérifient la mécanique du backtest, pas la valeur de la grille. */
+function bougies(n, derive){
+  var o = [], px = 20000, s = 4242;
+  for(var i=0;i<n;i++){
+    s = (s * 1103515245 + 12345) % 2147483648;
+    var ouv = px;
+    px = px * (1 + ((s/2147483648) - 0.5) * 0.04 + derive);
+    var t = Date.UTC(2020,0,1) + i*86400000;
+    o.push([t, String(ouv), String(Math.max(ouv,px)*1.01), String(Math.min(ouv,px)*0.99),
+            String(px), "100", t + 86399999]);
+  }
+  return o;
 }
-ok(memeRegime, "régime détecté identique sur toute la série");
-for(var s=0; s<=10; s+=0.1) if(C.tierFor(s) !== B.tierFor(s)) memePalier = false;
-ok(memePalier, "table score vers action identique sur toute l'échelle 0-10");
-ok(C.TIERS.length === B.TIERS.length, "même nombre de paliers");
-ok(C.TIERS.every(function(t, i){ return t.min === B.TIERS[i].min; }),
-   "seuils des paliers identiques au chiffre près");
-ok(C.holdIdx(7) === B.holdIdx(7) && C.holdIdx(2) === B.holdIdx(2), "repli « Rien » identique");
+var KL = bougies(700, 0.004);          /* dérive haussière : le RSI monte souvent haut */
+var R  = C.simulate(KL, 365, 70, 0.1, 7);
+var actuel = R.runs.regime.trades, origine = R.runs.plain.trades;
+var DEBUT = 335;                        /* max(260, 700 - 365) */
+
+ok(R.dates[0] === KL[DEBUT][0], "la simulation démarre bien après la période de chauffe des indicateurs");
+ok(near(R.hold.eq[0], 1, 1e-9) && near(R.runs.regime.eq[0], 1, 1e-9) && near(R.runs.plain.eq[0], 1, 1e-9),
+   "les trois portefeuilles partent de la même base");
+ok(origine.some(function(t){ return t.type === "vente"; }),
+   "sur une hausse marquée, la grille d'origine vend — le test suivant a donc de quoi mordre");
+ok(actuel.length > 0 && actuel.every(function(t){ return t.type !== "vente"; }),
+   "règles actuelles : des achats possibles, aucune vente, jamais");
+
+var ouvertures = {};
+KL.forEach(function(k){ ouvertures[k[0]] = parseFloat(k[1]); });
+ok(actuel.concat(origine).every(function(t){ return near(t.px, ouvertures[t.t], 1e-6); }),
+   "chaque ordre est exécuté à l'ouverture du lendemain, jamais à la clôture qui a servi à décider");
+
+function espaces(tr, j){
+  for(var i=1;i<tr.length;i++) if((tr[i].t - tr[i-1].t)/86400000 < j) return false;
+  return true;
+}
+ok(espaces(actuel, 7) && espaces(origine, 7), "délai de carence respecté : jamais deux ordres à moins de 7 jours");
+ok(C.simulate(KL, 365, 70, 0.1, 0).runs.plain.trades.length > origine.length,
+   "sans délai de carence, la grille d'origine multiplie les ordres");
+
+var p0 = parseFloat(KL[DEBUT][4]), pFin = parseFloat(KL[KL.length-2][4]);
+ok(near(R.hold.eq[R.hold.eq.length-1], 0.7/p0*pFin + 0.3, 1e-9),
+   "« ne rien faire » vaut exactement 70 % de BTC figé plus 30 % de cash");
+
+/* Le test qui compte le plus : couper la fin de l'historique ne doit rien changer
+   au passé. Si un seul jour bouge, le backtest lit l'avenir et ses résultats sont faux. */
+var Rc = C.simulate(KL.slice(0, 600), 600 - DEBUT, 70, 0.1, 7);
+function memePasse(a, b){
+  if(a.length < 100) return false;
+  for(var i=0;i<a.length;i++) if(!near(a[i], b[i], 1e-12)) return false;
+  return true;
+}
+ok(Rc.dates[0] === R.dates[0] && memePasse(Rc.runs.regime.eq, R.runs.regime.eq) &&
+   memePasse(Rc.runs.plain.eq, R.runs.plain.eq) && memePasse(Rc.hold.eq, R.hold.eq),
+   "aucune triche avec le futur : retirer les 100 derniers jours ne modifie pas un seul jour antérieur");
+
+ok(near(C.maxDD([100,120,60,90,130]), 50), "pire perte : une chute de 120 à 60 compte pour 50 %");
+ok(C.mean([]) === null && near(C.mean([1,2,3]), 2), "moyenne d'une liste vide : N/D, jamais 0");
 
 /* ================= RÉSULTAT ================= */
 console.log("");

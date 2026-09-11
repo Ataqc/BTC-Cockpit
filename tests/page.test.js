@@ -73,6 +73,7 @@ var dom = new jsdom.JSDOM(html, {
         return Promise.resolve({ ok:true, status:200, json:function(){ return Promise.resolve(body); } });
       } catch(e){ return Promise.reject(e); }
     };
+    win.scrollTo = function(){};
     win.addEventListener("error", function(ev){ erreurs.push(String(ev.message || ev.error)); });
     var vraiErr = win.console.error;
     win.console.error = function(){ erreurs.push(Array.prototype.join.call(arguments," ")); vraiErr.apply(win.console, arguments); };
@@ -187,6 +188,63 @@ attendre().then(function(){
   doc.getElementById("hSave").dispatchEvent(new win.Event("click", { bubbles:true }));
   ok(htm("hTable").length > 40, "l'analyse enregistrée apparaît dans l'historique");
   ok(erreurs.length === 0, "toujours aucune erreur JavaScript après interaction" +
+     (erreurs.length ? " (" + erreurs[0] + ")" : ""));
+
+  /* ---------- onglets : cockpit et backtest dans une seule page ---------- */
+  function attendreQue(cond, msg){
+    var limite = Date.now() + 20000;
+    return new Promise(function(resolve, reject){
+      (function boucle(){
+        if(cond()) return resolve();
+        if(Date.now() > limite) return reject(new Error(msg + (erreurs.length ? " — erreur : " + erreurs[0] : "")));
+        setTimeout(boucle, 50);
+      })();
+    });
+  }
+  function aller(h){
+    win.location.hash = h;
+    win.dispatchEvent(new win.HashChangeEvent("hashchange"));
+  }
+  ok(!doc.getElementById("vCockpit").hidden && doc.getElementById("vBacktest").hidden,
+     "à l'ouverture, seul le cockpit est affiché");
+  ok(/\bon\b/.test(doc.getElementById("tabCockpit").className) &&
+     !/\bon\b/.test(doc.getElementById("tabBacktest").className),
+     "l'onglet Cockpit est marqué actif, et lui seul");
+  ok(!!doc.querySelector("header #tabBacktest"), "le bouton Backtest est bien dans la bannière");
+  doc.getElementById("tabBacktest").dispatchEvent(new win.MouseEvent("click", { bubbles:true, cancelable:true }));
+  ok(win.location.hash === "#backtest",
+     "le clic sur l'onglet met l'adresse à jour (#backtest) : favori et bouton retour restent justes");
+  ok(doc.getElementById("vCockpit").hidden && !doc.getElementById("vBacktest").hidden,
+     "onglet Backtest : le backtest remplace le cockpit sans changer de page");
+  ok(/\bon\b/.test(doc.getElementById("tabBacktest").className) && doc.title.indexOf("Backtest") >= 0,
+     "l'onglet Backtest devient actif et le titre de l'onglet du navigateur suit");
+  ok(win.D.verdict && win.D.verdict.ok, "les données du cockpit restent en mémoire pendant ce temps");
+  ok(htm("btOut") === "", "le backtest ne télécharge rien tant qu'on ne l'a pas lancé");
+  doc.getElementById("btYears").value = "2";
+  doc.getElementById("btRun").dispatchEvent(new win.Event("click", { bubbles:true }));
+  return attendreQue(function(){ return /Résultat/.test(htm("btOut")); },
+                     "le backtest n'a produit aucun résultat en 20 s");
+}).then(function(){
+  function aller(h){
+    win.location.hash = h;
+    win.dispatchEvent(new win.HashChangeEvent("hashchange"));
+  }
+  var out = doc.getElementById("btOut");
+  ok(out.querySelectorAll(".hero").length === 3,
+     "le backtest affiche ses trois résultats : règles actuelles, grille d'origine, ne rien faire");
+  ok(!!doc.getElementById("btChart"), "la courbe d'évolution du portefeuille est dessinée");
+  var etiquettes = [].map.call(out.querySelectorAll(".tag"), function(t){ return t.textContent; });
+  ok(etiquettes.indexOf("vente") < 0, "aucune vente dans les transactions des règles actuelles");
+  ok(htm("btOut").indexOf("NaN") < 0 && htm("btOut").indexOf("undefined") < 0,
+     "ni « NaN » ni « undefined » dans les résultats du backtest");
+  ok(doc.getElementById("btRun").textContent.indexOf("Relancer") >= 0, "le bouton propose de relancer");
+  aller("#cockpit");
+  ok(!doc.getElementById("vCockpit").hidden && doc.getElementById("vBacktest").hidden &&
+     htm("verdict").indexOf("vcard") >= 0,
+     "retour au cockpit : le verdict est toujours là, rien n'a été rechargé");
+  aller("#backtest");
+  ok(/Résultat/.test(htm("btOut")), "retour au backtest : le dernier résultat est conservé");
+  ok(erreurs.length === 0, "toujours aucune erreur JavaScript après navigation et backtest" +
      (erreurs.length ? " (" + erreurs[0] + ")" : ""));
 
   /* ---------- résultat ---------- */

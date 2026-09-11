@@ -3,13 +3,13 @@
 [![Tests](https://github.com/Ataqc/BTC-Cockpit/actions/workflows/tests.yml/badge.svg)](https://github.com/Ataqc/BTC-Cockpit/actions/workflows/tests.yml)
 
 Aide à la décision pour la gestion d'une position **Bitcoin au comptant**.
-Deux pages autonomes, sans installation, sans compte, sans clé d'API.
+Une seule page autonome à deux onglets, sans installation, sans compte, sans clé d'API.
 
-| Page | À quoi elle sert | Lien |
+| Onglet | À quoi il sert | Lien |
 |---|---|---|
 | **Cockpit** | Récupère les données du marché et calcule tout ce qui est calculable : indicateurs, régime, divergences, niveaux, scores, chaîne de décision | [ouvrir](https://ataqc.github.io/BTC-Cockpit/) |
-| **Backtest** | Rejoue le score et les règles sur l'historique réel pour vérifier si elles tiennent | [ouvrir](https://ataqc.github.io/BTC-Cockpit/backtest.html) |
-| **Prompt d'analyse** | Ce qu'on donne à lire à l'IA une fois le bloc de données copié | [prompt-analyse-v3.md](prompt-analyse-v3.md) |
+| **Backtest** | Rejoue le score et les règles sur l'historique réel pour vérifier si elles tiennent | [ouvrir](https://ataqc.github.io/BTC-Cockpit/#backtest) |
+| **Prompt d'analyse** | Ce qu'on donne à lire à l'IA une fois le bloc de données copié — un document, pas un onglet | [prompt-analyse-v3.md](prompt-analyse-v3.md) |
 
 ## Le principe
 
@@ -24,18 +24,21 @@ faire.
 
 ## Ce que la pastille verte en haut veut dire
 
-À chaque modification envoyée sur GitHub, 151 vérifications automatiques
+À chaque modification envoyée sur GitHub, 159 vérifications automatiques
 s'exécutent :
 
 - **le moteur de calcul** — chaque indicateur est confronté à une série dont on
   connaît la réponse d'avance (une moyenne mobile sur un prix immobile doit valoir
   ce prix, un RSI sur une hausse continue doit valoir 100) ;
-- **le contrôle croisé** — le cockpit et le backtest contiennent chacun leur copie
-  des formules ; les tests échouent au premier écart entre les deux, sinon le
-  backtest finirait par valider autre chose que le cockpit ;
+- **le backtest** — il utilise les formules du cockpit lui-même, dont il n'existe
+  qu'une seule copie. On vérifie qu'il n'exécute jamais un ordre au cours qui a
+  servi à décider, qu'il respecte le délai de carence, qu'il ne vend jamais sous
+  les règles actuelles, et surtout qu'il ne lit pas l'avenir : couper la fin de
+  l'historique ne doit pas changer un seul jour du passé ;
 - **la page entière** — elle est chargée dans un navigateur simulé, avec un faux
   réseau, et on vérifie que tout s'affiche, que les scores restent dans l'échelle
-  0-10 et qu'aucune erreur ne survient.
+  0-10, que les onglets basculent sans rien recharger, que le backtest tourne
+  jusqu'au bout et qu'aucune erreur ne survient.
 
 **Vert = les calculs font ce qu'ils annoncent. Rouge = ne pas se fier à la page.**
 
@@ -80,5 +83,5 @@ npm install
 npm test
 ```
 
-Les pages elles-mêmes n'ont **aucune dépendance** : elles s'ouvrent au double-clic
-et doivent encore fonctionner dans dix ans. `jsdom` ne sert qu'aux tests.
+La page elle-même n'a **aucune dépendance** : elle s'ouvre au double-clic et
+doit encore fonctionner dans dix ans. `jsdom` ne sert qu'aux tests.

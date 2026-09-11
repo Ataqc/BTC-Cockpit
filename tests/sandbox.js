@@ -9,7 +9,7 @@ var vm = require("vm");
 
 function fakeEl(id){
   return {
-    id: id, value: "", textContent: "", innerHTML: "",
+    id: id, value: "", textContent: "", innerHTML: "", hidden: false, className: "",
     style: {}, dataset: {},
     classList: { add:function(){}, remove:function(){}, toggle:function(){}, contains:function(){ return false; } },
     addEventListener: function(){}, removeEventListener: function(){},
@@ -36,10 +36,14 @@ function load(file){
     AbortController: AbortController,
     setTimeout: function(){ return 0; }, clearTimeout: function(){},
     setInterval: function(){ return 0; }, clearInterval: function(){},
+    addEventListener: function(){}, removeEventListener: function(){},
+    scrollTo: function(){},
+    innerWidth: 1280,
     /* le réseau ne répond jamais : on teste les calculs, pas Binance */
     fetch: function(){ return new Promise(function(){}); },
     navigator: { clipboard: null },
-    location: { href: "", protocol: "https:" },
+    location: { href: "", hash: "", protocol: "https:" },
+    history: { pushState: function(){}, replaceState: function(){} },
     localStorage: {
       getItem: function(k){ return Object.prototype.hasOwnProperty.call(store,k) ? store[k] : null; },
       setItem: function(k,v){ store[k] = String(v); },
@@ -47,6 +51,7 @@ function load(file){
       clear: function(){ store = {}; }
     },
     document: {
+      title: "",
       getElementById: function(id){ return els[id] || (els[id] = fakeEl(id)); },
       querySelector: function(){ return null; },
       querySelectorAll: function(){ return []; },

@@ -30,6 +30,10 @@ Il est fait de deux moitiés qui ne doivent jamais être confondues :
 | **Le cockpit** (`index.html`) | Récupère les données et calcule **tout ce qui est calculable** | ce dépôt |
 | **Le prompt d'analyse** (`prompt-analyse-v3.md`) | Fait **lire** ce résultat à une IA, qui interprète, conteste et formule | ce dépôt |
 
+Le **backtest** n'est pas une troisième moitié : c'est un **onglet** du cockpit,
+dans la même page (`index.html#backtest`), qui rejoue les mêmes formules sur
+l'historique. `backtest.html` ne fait plus que rediriger les anciens favoris.
+
 **Le principe fondateur, à ne jamais casser :**
 > Le code pour ce qui doit être constant et reproductible.
 > L'IA pour ce qui demande du jugement.
@@ -76,7 +80,13 @@ ligne elle tombe.**
 - Toute lecture/écriture `localStorage` est enveloppée dans un `try/catch` : elle
   peut échouer (navigation privée, réglages).
 - **Hébergement :** GitHub Pages, https://ataqc.github.io/BTC-Cockpit/
-  Attention à la casse du chemin (`BTC-Cockpit`).
+  Attention à la casse du chemin (`BTC-Cockpit`). Le backtest est à la même
+  adresse, onglet `#backtest` — une seule URL à retenir.
+- **Affichage : rien ne dépasse jamais le bord d'une carte**, à aucune largeur.
+  Une étiquette longue se replie sur elle-même, une valeur composée se replie entre
+  ses segments « · », une grille ne réclame jamais plus que la largeur de l'écran,
+  et un contenu imprévu défile *dans* sa carte au lieu d'en sortir. La page est
+  aussi consultée sur iPhone.
 - `localStorage` est **par appareil** : ce qu'il saisit sur l'ordinateur
   n'apparaît pas sur son iPhone. C'est connu et accepté.
 
@@ -270,14 +280,26 @@ avoir un décompte différent — ce n'est pas un bug.
 
 ---
 
-## 10. Le backtest (`backtest.html`)
+## 10. Le backtest (onglet `#backtest` de `index.html`)
 
-Rejoue le score, la table d'action et la règle de régime sur l'historique réel,
-et compare trois variantes : avec la règle de régime, sans elle, et ne rien faire.
+Rejoue le score et la table d'action sur l'historique réel, et compare trois
+variantes : **les règles actuelles du cockpit** (sans vente swing, achat réduit en
+tendance baissière), **la grille d'origine** qui vendait sur score élevé, et **ne
+rien faire**.
+
+**Une seule copie des formules.** Jusqu'au 11 septembre 2026, `backtest.html`
+contenait sa propre copie des indicateurs, et un test vérifiait que les deux copies
+restaient d'accord — elles avaient déjà divergé une fois. Le backtest vit
+désormais dans la même page et appelle directement les fonctions du cockpit : la
+dérive est devenue impossible, et un test échoue si une seconde définition
+réapparaît. L'historique n'est téléchargé que quand on lance le calcul.
 
 **Protections contre la triche au futur — à préserver absolument :**
 - Décision à la **clôture** du jour, exécution à l'**ouverture du lendemain**
-- Divergences uniquement sur sommets **confirmés** (3 bougies de chaque côté)
+- Divergences uniquement sur sommets **confirmés** (3 bougies de chaque côté) — le
+  backtest n'en utilise plus depuis le retrait des ventes swing ; toute
+  réintroduction doit respecter cette règle
+- **Test anti-triche** : tronquer la fin de l'historique ne doit modifier aucun jour antérieur
 - Percentiles calculés sur les **200 bougies précédentes** seulement
 - Indicateurs causals calculés une fois sur toute la série puis lus à l'instant t
   (mathématiquement équivalent à un recalcul glissant, mais O(n) au lieu de O(n²))
@@ -319,14 +341,21 @@ transactions par trois.
     minimal simulé. Les tests appellent donc les **vraies** fonctions des vraies
     pages : ne recopie jamais une formule dans un test, un test qui recopie ce
     qu'il vérifie ne vérifie rien.
-  - `tests/engine.test.js` (96 vérifications, zéro dépendance) : identités
+  - `tests/engine.test.js` (99 vérifications, zéro dépendance) : identités
     mathématiques (moyenne mobile sur série constante = la constante, RSI sur série
-    croissante = 100, décroissante = 0, plate = 50) **et contrôle croisé
-    cockpit ↔ backtest**, qui échoue au premier écart entre les deux copies des
-    formules.
-  - `tests/page.test.js` (43 vérifications, `jsdom`) : charge `index.html` entière
+    croissante = 100, décroissante = 0, plate = 50), chaîne de décision, péremption,
+    **unicité des formules** (chaque indicateur défini une seule fois dans la page)
+    et **mécanique du backtest** : exécution à l'ouverture du lendemain, délai de
+    carence, aucune vente sous les règles actuelles, et **aucune lecture de
+    l'avenir** — tronquer l'historique ne doit changer aucun jour passé.
+  - `tests/page.test.js` (60 vérifications, `jsdom`) : charge `index.html` entière
     avec un faux réseau et vérifie le rendu, les scores, le bloc généré, la
-    péremption et l'absence d'erreur JavaScript.
+    péremption, la bascule des onglets (par clic et par adresse), un backtest
+    complet et l'absence d'erreur JavaScript.
+  - **Ce que les tests ne voient pas : la mise en page.** jsdom ne calcule aucune
+    largeur. Toute modification d'affichage se vérifie dans un vrai navigateur à
+    **390, 768, 1024 et 1280 px** : aucun tableau ne doit dépasser de sa carte, et
+    la page ne doit jamais défiler horizontalement.
   - GitHub Actions relance tout à chaque push : pastille verte ou rouge en haut du
     `README`. C'est le seul signal de santé lisible sans terminal —
     **ne le laisse jamais rouge**.
@@ -335,8 +364,8 @@ transactions par trois.
 - **Ne fabrique jamais un chiffre de marché.** Si tu testes avec des données
   synthétiques, dis-le explicitement — un résultat obtenu sur une série inventée
   ne dit rien du vrai Bitcoin.
-- **N'ajoute jamais de dépendance externe dans les pages.** `index.html` et
-  `backtest.html` doivent rester autonomes, ouvrables au double-clic dans dix ans.
+- **N'ajoute jamais de dépendance externe dans la page.** `index.html` doit
+  rester autonome, ouvrable au double-clic dans dix ans.
   `jsdom` est une dépendance de *test* uniquement : elle ne doit jamais être
   nécessaire au fonctionnement d'une page.
 - **Interface en français**, avec une explication courte sous chaque bloc pour un
@@ -358,6 +387,9 @@ transactions par trois.
 - Hébergement GitHub Pages, vérifié en fonctionnement sur données réelles
 - Péremption des métriques manuelles (§7), tests automatisés dans le dépôt (§12)
 - **Backtest réel exécuté** le 8 septembre 2026 — voir §14
+- **Backtest fusionné dans le cockpit** le 11 septembre 2026 : une seule adresse,
+  deux onglets, une seule copie des formules (§10). Débordements de tableaux
+  corrigés à toutes les largeurs d'écran (§4)
 
 ---
 
