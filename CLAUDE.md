@@ -553,3 +553,11 @@ n'importe qui pourrait lire ou brouiller les alertes. Sans ce secret, le robot
 fait un passage à blanc : il calcule, affiche ce qu'il enverrait, n'envoie rien.
 Déclenchement manuel possible depuis l'onglet Actions du dépôt, avec l'option
 « essai » pour recevoir une notification même si rien n'a changé.
+
+**État au 11 septembre 2026 : canal non configuré, à la demande de l'utilisateur.**
+Le secret `NTFY_TOPIC` n'existe pas : le robot tourne chaque nuit en passage à
+blanc et n'envoie rien. Passage à blanc vérifié le jour même depuis GitHub, sur
+données réelles. Pour l'activer, quand l'utilisateur le demandera : générer un nom
+de canal aléatoire, l'enregistrer comme secret du dépôt (c'est une modification
+de configuration : demander son accord), le lui donner pour qu'il s'abonne dans
+l'application ntfy, puis déclencher le robot avec l'option « essai ».
