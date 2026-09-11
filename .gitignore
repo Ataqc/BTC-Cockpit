@@ -1,3 +1,4 @@
 node_modules/
 .bak.html
 tmp_*.js
+.claude/launch.json

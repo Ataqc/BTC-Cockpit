@@ -24,7 +24,7 @@ faire.
 
 ## Ce que la pastille verte en haut veut dire
 
-À chaque modification envoyée sur GitHub, 159 vérifications automatiques
+À chaque modification envoyée sur GitHub, 184 vérifications automatiques
 s'exécutent :
 
 - **le moteur de calcul** — chaque indicateur est confronté à une série dont on
@@ -38,7 +38,8 @@ s'exécutent :
 - **la page entière** — elle est chargée dans un navigateur simulé, avec un faux
   réseau, et on vérifie que tout s'affiche, que les scores restent dans l'échelle
   0-10, que les onglets basculent sans rien recharger, que le backtest tourne
-  jusqu'au bout et qu'aucune erreur ne survient.
+  jusqu'au bout, que le bilan « depuis ta dernière visite » ne signale que des
+  changements réels, et qu'aucune erreur ne survient.
 
 **Vert = les calculs font ce qu'ils annoncent. Rouge = ne pas se fier à la page.**
 

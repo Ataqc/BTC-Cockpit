@@ -190,6 +190,47 @@ attendre().then(function(){
   ok(erreurs.length === 0, "toujours aucune erreur JavaScript après interaction" +
      (erreurs.length ? " (" + erreurs[0] + ")" : ""));
 
+  /* ---------- depuis ta dernière visite ---------- */
+  ok(/Première visite/.test(htm("visit")), "première ouverture : le bilan le dit, sans rien inventer");
+  var memo = JSON.parse(win.localStorage.getItem("btc_visit"));
+  ok(memo && memo.v === 1 && memo.px > 0 && memo.po && memo.reg && memo.reg.d1,
+     "l'état de cette visite est mémorisé sur l'appareil");
+  win.renderVisit();
+  ok(/Première visite/.test(htm("visit")),
+     "actualiser pendant la même visite ne remplace pas la référence");
+
+  /* visite suivante simulée : la précédente date de deux jours, avec un autre régime
+     journalier et un autre palier position */
+  var ancien = JSON.parse(JSON.stringify(memo));
+  ancien.ts = Date.now() - 2*86400000;
+  ancien.reg.d1 = (ancien.reg.d1 === "RANGE") ? "TENDANCE" : "RANGE";
+  ancien.po.tier = (ancien.po.tier === 5) ? 4 : 5;
+  win.localStorage.setItem("btc_visit", JSON.stringify(ancien));
+  win.sessionStorage.removeItem("btc_visit_ref");
+  win.renderVisit();
+  ok(/Dernière visite/.test(htm("visit")) && /il y a 2 j/.test(htm("visit")),
+     "nouvelle visite : la date et l'ancienneté de la précédente sont affichées");
+  ok(/Régime 1 J/.test(htm("visit")) && /POSITION/.test(htm("visit")),
+     "les changements de régime et de palier depuis la visite sont listés");
+  win.renderVisit();
+  ok(/Régime 1 J/.test(htm("visit")),
+     "une actualisation ne fait pas disparaître un changement pas encore lu");
+
+  var verdictSauve = win.D.verdict;
+  var referenceAvant = win.localStorage.getItem("btc_visit");
+  win.D.verdict = {ok:false};
+  win.sessionStorage.removeItem("btc_visit_ref");
+  win.renderVisit();
+  ok(/indisponible/.test(htm("visit")) && win.localStorage.getItem("btc_visit") === referenceAvant,
+     "données non chargées : bilan indisponible, et la référence n'est pas écrasée par un état vide");
+  win.D.verdict = verdictSauve;
+  var vraiStorageOK = win.storageOK;
+  win.storageOK = function(){ return false; };
+  win.renderVisit();
+  ok(/mémoire locale est bloquée/.test(htm("visit")),
+     "mémoire du navigateur bloquée : le bilan le dit, au lieu de prétendre avoir enregistré la visite");
+  win.storageOK = vraiStorageOK;
+
   /* ---------- onglets : cockpit et backtest dans une seule page ---------- */
   function attendreQue(cond, msg){
     var limite = Date.now() + 20000;

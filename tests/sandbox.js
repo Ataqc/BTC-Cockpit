@@ -50,6 +50,14 @@ function load(file){
       removeItem: function(k){ delete store[k]; },
       clear: function(){ store = {}; }
     },
+    sessionStorage: (function(){
+      var st = {};
+      return {
+        getItem: function(k){ return Object.prototype.hasOwnProperty.call(st,k) ? st[k] : null; },
+        setItem: function(k,v){ st[k] = String(v); },
+        removeItem: function(k){ delete st[k]; }
+      };
+    })(),
     document: {
       title: "",
       getElementById: function(id){ return els[id] || (els[id] = fakeEl(id)); },

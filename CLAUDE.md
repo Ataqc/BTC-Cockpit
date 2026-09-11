@@ -128,6 +128,29 @@ utilisés en repli automatique si le principal échoue.
 - **Scores** swing et position (voir §7)
 - **Chaîne de décision** complète (voir §9)
 - **Historique des analyses** avec vérification de l'invalidation sur bougies réelles
+- **Bilan « depuis ta dernière visite »**, en tête du cockpit (voir ci-dessous)
+
+**Bilan « depuis ta dernière visite »** — volet A des alertes. Il compare ce que
+le cockpit affiche à ce qu'il affichait lors de la visite précédente **sur cet
+appareil**, et ne signale que ce qui a changé : palier POSITION ou SWING, régime
+1 J ou 1 S, nouvelle divergence confirmée, franchissement de l'EMA 200, cassure du
+support ou de la résistance les plus proches d'alors, invalidation touchée,
+relevé manuel devenu périmé. Si rien ne bouge, il le dit en une ligne : c'est la
+réponse normale. Il **rapporte**, il ne décide rien.
+- « À regarder » : palier qui devient une action, nouvelle divergence, niveau
+  cassé, invalidation touchée. « À noter » : le reste.
+- Référence en `localStorage` (`btc_visit`). Pendant une même visite, la référence
+  est figée en `sessionStorage` : actualiser ne fait pas disparaître un changement
+  pas encore lu.
+- Données non chargées : rien n'est enregistré. Un état vide ne doit jamais
+  devenir la référence de la visite suivante.
+- Mémoire du navigateur bloquée (navigation privée, réglages) : le bilan le dit
+  franchement, au lieu d'afficher « première visite enregistrée » à chaque fois.
+- Une valeur N/D d'un côté ou de l'autre ne produit **jamais** d'événement. Une
+  divergence n'est « nouvelle » que si on connaissait l'état précédent.
+- Plus bas / plus haut depuis la visite : uniquement les bougies 4 H **ouvertes
+  après** la visite, plus le prix actuel. Mieux vaut rater quelques heures que
+  sonner à tort.
 
 **Règle absolue : tous les indicateurs sont calculés uniquement sur bougies
 CLÔTURÉES.** Binance renvoie la bougie en cours en dernier ; elle est filtrée par
@@ -341,17 +364,20 @@ transactions par trois.
     minimal simulé. Les tests appellent donc les **vraies** fonctions des vraies
     pages : ne recopie jamais une formule dans un test, un test qui recopie ce
     qu'il vérifie ne vérifie rien.
-  - `tests/engine.test.js` (99 vérifications, zéro dépendance) : identités
+  - `tests/engine.test.js` (116 vérifications, zéro dépendance) : identités
     mathématiques (moyenne mobile sur série constante = la constante, RSI sur série
     croissante = 100, décroissante = 0, plate = 50), chaîne de décision, péremption,
     **unicité des formules** (chaque indicateur défini une seule fois dans la page)
     et **mécanique du backtest** : exécution à l'ouverture du lendemain, délai de
     carence, aucune vente sous les règles actuelles, et **aucune lecture de
-    l'avenir** — tronquer l'historique ne doit changer aucun jour passé.
-  - `tests/page.test.js` (60 vérifications, `jsdom`) : charge `index.html` entière
+    l'avenir** — tronquer l'historique ne doit changer aucun jour passé. Plus le
+    **bilan de visite** : aucun événement sans changement constaté des deux côtés,
+    aucune répétition d'un événement déjà signalé.
+  - `tests/page.test.js` (68 vérifications, `jsdom`) : charge `index.html` entière
     avec un faux réseau et vérifie le rendu, les scores, le bloc généré, la
     péremption, la bascule des onglets (par clic et par adresse), un backtest
-    complet et l'absence d'erreur JavaScript.
+    complet, le bilan de visite (référence conservée pendant la visite, jamais
+    écrasée si les données manquent) et l'absence d'erreur JavaScript.
   - **Ce que les tests ne voient pas : la mise en page.** jsdom ne calcule aucune
     largeur. Toute modification d'affichage se vérifie dans un vrai navigateur à
     **390, 768, 1024 et 1280 px** : aucun tableau ne doit dépasser de sa carte, et
@@ -390,6 +416,8 @@ transactions par trois.
 - **Backtest fusionné dans le cockpit** le 11 septembre 2026 : une seule adresse,
   deux onglets, une seule copie des formules (§10). Débordements de tableaux
   corrigés à toutes les largeurs d'écran (§4)
+- **Bilan « depuis ta dernière visite »** le 11 septembre 2026 — volet A des
+  alertes (§6)
 
 ---
 
@@ -460,10 +488,19 @@ actuelles : sans ça, le backtest aurait continué à mesurer une grille que le
 cockpit n'applique plus.
 
 **Prochaines étapes possibles, par ordre de valeur :**
-1. **Alertes** : une vérification quotidienne qui ne prévient que si un seuil est
-   franchi ou une invalidation touchée. Cohérent avec le biais « ne rien faire ».
-   Suppose de trouver un environnement d'exécution avec accès réseau.
-   **Choisi comme prochain chantier le 8 septembre 2026.**
+1. **Alertes**, en deux volets choisis le 11 septembre 2026 :
+   - **A — fait** : bilan « depuis ta dernière visite » en tête du cockpit (§6).
+     Toutes les données, MVRV et invalidations compris, mais il faut ouvrir la page.
+   - **B — à faire** : robot quotidien sur GitHub Actions et notification iPhone
+     via ntfy (gratuit, sans compte ; push iOS confirmé sur le serveur public
+     ntfy.sh). Il doit réutiliser les formules de la page via `tests/sandbox.js`,
+     sans les recopier. Contraintes établies : les serveurs GitHub sont aux
+     États-Unis, que Binance bloque (HTTP 451) — les bougies passeraient par
+     `data-api.binance.vision`, **à confirmer par un essai avant de construire** ;
+     funding, OI et long/short resteraient indisponibles. Le robot ne voit ni le
+     MVRV ni aucune donnée personnelle : il ne peut donc jamais annoncer une vente
+     POSITION. GitHub suspend une tâche planifiée après 60 jours sans commit dans
+     un dépôt public.
 2. **Backtest 4H** pour tester le score swing complet (aujourd'hui rejoué en
    journalier seulement). Coût : environ 11 requêtes de pagination par période.
    C'est aussi le seul moyen de savoir si le retrait des ventes (§9, étape 2) vaut

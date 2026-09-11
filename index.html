@@ -114,6 +114,10 @@ footer{text-align:center;color:var(--tx3);font-size:12px;margin-top:30px;line-he
   border-radius:0 10px 10px 0;padding:13px 16px;margin-bottom:16px;font-size:13.5px;color:var(--tx2)}
 .banner b{color:var(--tx)}
 
+/* ---- Depuis ta dernière visite ---- */
+.vhead{font-size:13.5px;color:var(--tx2);line-height:1.65}
+.vhead b{color:var(--tx)}
+
 /* ---- Onglets ---- */
 [hidden]{display:none!important}
 .brandrow{display:flex;align-items:center;flex-wrap:wrap;gap:10px 14px}
@@ -199,6 +203,12 @@ td.n .seg{white-space:nowrap}
 
 <div class="wrap">
 <div id="vCockpit">
+
+  <div class="card">
+    <h2>Depuis ta dernière visite</h2>
+    <div id="visit"><div class="hint">Chargement…</div></div>
+    <div class="hint">Comparaison avec ce que le cockpit affichait lors de ta visite précédente, sur cet appareil. Seuls les changements sont signalés : palier d'action, régime, nouvelle divergence, EMA 200, support ou résistance cassé, invalidation touchée, relevé manuel périmé. Actualiser pendant la même visite ne remet pas le compteur à zéro.</div>
+  </div>
 
   <div class="card">
     <h2>État des sources</h2>
@@ -1500,6 +1510,7 @@ function render(){
     "</tbody></table>";
 
   renderVerdict();
+  renderVisit();
   renderHist();
   drawSources();
   buildBlock();
@@ -1538,6 +1549,177 @@ function renderHist(){
       histSave(a); renderHist(); buildBlock();
     });
   });
+}
+
+/* =================== DEPUIS TA DERNIÈRE VISITE ===================
+   Compare ce que le cockpit affiche maintenant à ce qu'il affichait lors de la
+   visite précédente sur cet appareil, et ne signale QUE ce qui a changé. Le
+   silence est la réponse normale : c'est le biais « ne rien faire » appliqué à
+   l'information.
+   - La référence vit en localStorage : rien ne quitte le navigateur.
+   - Une actualisation pendant la même visite ne remplace pas la référence
+     (sessionStorage) : sinon un changement pas encore lu disparaîtrait.
+   - Données non chargées = rien n'est enregistré : un état vide ne doit jamais
+     devenir la référence de la visite suivante. */
+var VISIT_KEY = "btc_visit", VISIT_REF = "btc_visit_ref", VISIT_V = 1;
+
+/* Horodatage des pivots d'une divergence : c'est ce qui permet de distinguer une
+   divergence nouvelle d'une divergence déjà vue (les indices, eux, glissent). */
+function divTimes(dv, kl){
+  if(!dv || !kl) return null;
+  return { bear: dv.bear ? kl[dv.bear.b][0] : null,
+           bull: dv.bull ? kl[dv.bull.b][0] : null };
+}
+
+function visitSnapshot(){
+  var V = D.verdict;
+  if(!V || !V.ok || !D.tick) return null;
+  var px = parseFloat(D.tick.lastPrice);
+  var H = histLoad(), last = H.length ? H[H.length-1] : null, rv = last ? histReview(last) : null;
+  var lv = D.lvl || {res:[], sup:[]};
+  function tier(dec){ return (dec && dec.final!==null && dec.final!==undefined) ? dec.final : null; }
+  return {
+    v: VISIT_V, ts: Date.now(), px: px,
+    sw:  { tier: tier(V.decSwing), score: V.swing.score },
+    po:  { tier: tier(V.decPos),   score: V.position.score },
+    reg: { d1: V.regime.d1.label, w1: V.regime.w1.label },
+    div: { d1: divTimes(V.div.d1, D.kd), w1: divTimes(V.div.w1, D.kw) },
+    e200: (D.ema && D.ema.e200!==undefined) ? D.ema.e200 : null,
+    sup: lv.sup.length ? lv.sup[0] : null,
+    res: lv.res.length ? lv.res[0] : null,
+    inv: last ? { ts:last.ts, sw:rv.hitSwing, po:rv.hitPos, lvlS:last.invSwing, lvlP:last.invPos } : null,
+    stale: manualFilled() ? manualStale() : null
+  };
+}
+
+/* Liste des changements entre deux relevés. Fonction pure, sans lecture de la page.
+   Une valeur N/D d'un côté ou de l'autre ne produit jamais d'événement : on ne
+   signale que ce qui est constaté des deux côtés.
+   lo / hi = plus bas et plus haut RÉELS depuis la visite précédente. */
+function visitEvents(p, c, lo, hi){
+  var ev = [];
+  function add(fort, txt){ ev.push({fort:fort, txt:txt}); }
+  function ok(x){ return x!==null && x!==undefined && !(typeof x==="number" && isNaN(x)); }
+
+  [["POSITION","po"],["SWING","sw"]].forEach(function(h){
+    var a = p[h[1]], b = c[h[1]];
+    if(a && b && ok(a.tier) && ok(b.tier) && a.tier !== b.tier)
+      add(TIERS[b.tier].dir !== "hold",
+          h[0]+" : « "+TIERS[a.tier].lbl+" » → <b>« "+TIERS[b.tier].lbl+" »</b> (score "+
+          num(a.score,2)+" → "+num(b.score,2)+")");
+  });
+  [["1 J","d1"],["1 S","w1"]].forEach(function(t){
+    var a = p.reg && p.reg[t[1]], b = c.reg && c.reg[t[1]];
+    if(ok(a) && ok(b) && a!=="N/D" && b!=="N/D" && a!==b)
+      add(false, "Régime "+t[0]+" : "+a+" → <b>"+b+"</b>");
+  });
+  [["1 J","d1"],["1 S","w1"]].forEach(function(t){
+    var a = p.div && p.div[t[1]], b = c.div && c.div[t[1]];
+    if(!a || !b) return;
+    [["bear","baissière"],["bull","haussière"]].forEach(function(k){
+      if(ok(b[k[0]]) && b[k[0]] !== a[k[0]])
+        add(true, "Nouvelle divergence "+k[1]+" confirmée en "+t[0]+" (pivot du "+
+            new Date(b[k[0]]).toLocaleDateString("fr-FR")+")");
+    });
+  });
+  if(ok(p.e200) && ok(c.e200) && ok(p.px) && ok(c.px) && (p.px > p.e200) !== (c.px > c.e200))
+    add(false, "Le prix est passé <b>"+(c.px > c.e200 ? "au-dessus" : "en dessous")+
+        "</b> de l'EMA 200 journalière ("+num(c.e200,0)+" $)");
+  if(ok(p.sup) && ok(lo) && lo < p.sup)
+    add(true, "Support de "+num(p.sup,0)+" $ enfoncé depuis ta visite (plus bas "+num(lo,0)+" $)");
+  if(ok(p.res) && ok(hi) && hi > p.res)
+    add(true, "Résistance de "+num(p.res,0)+" $ franchie depuis ta visite (plus haut "+num(hi,0)+" $)");
+  if(c.inv){
+    [["SWING","sw","lvlS"],["POSITION","po","lvlP"]].forEach(function(h){
+      var deja = p.inv && p.inv.ts === c.inv.ts && p.inv[h[1]] === true;
+      if(c.inv[h[1]] === true && !deja)
+        add(true, "Invalidation "+h[0]+" de ton analyse du "+new Date(c.inv.ts).toLocaleDateString("fr-FR")+
+            " ("+num(c.inv[h[2]],0)+" $) <b>touchée</b> — cette analyse ne tient plus");
+    });
+  }
+  if(c.stale === true && p.stale === false)
+    add(false, "Tes métriques manuelles ont dépassé "+MANUAL_MAX_AGE+" jours : elles sont désormais exclues des scores");
+  return ev;
+}
+
+/* Plus bas et plus haut depuis la visite : uniquement les bougies 4 H ouvertes APRÈS
+   la visite, plus le prix actuel. Une bougie à cheval sur la visite pourrait porter
+   un plus bas antérieur : mieux vaut rater quelques heures que sonner à tort. */
+function visitRange(since){
+  var lo = null, hi = null;
+  (D.k4 || []).forEach(function(k){
+    if(k[0] < since) return;
+    var l = parseFloat(k[3]), h = parseFloat(k[2]);
+    if(lo === null || l < lo) lo = l;
+    if(hi === null || h > hi) hi = h;
+  });
+  if(D.tick){
+    var px = parseFloat(D.tick.lastPrice);
+    if(lo === null || px < lo) lo = px;
+    if(hi === null || px > hi) hi = px;
+  }
+  return {lo:lo, hi:hi};
+}
+
+function dureeTxt(ms){
+  var h = Math.floor(ms/3600000), j = Math.floor(h/24);
+  if(j >= 1) return "il y a "+j+" j"+(h%24 ? " "+(h%24)+" h" : "");
+  if(h >= 1) return "il y a "+h+" h";
+  return "il y a "+Math.max(1, Math.round(ms/60000))+" min";
+}
+
+function visitHtml(ref, cur){
+  if(!ref || ref.v !== VISIT_V)
+    return "<div class='note'>Première visite enregistrée sur cet appareil. Au prochain passage, ce bloc te dira ce qui a changé depuis aujourd'hui — et seulement ça.</div>";
+  var r = visitRange(ref.ts), d = new Date(ref.ts);
+  var h = "<div class='vhead'>Dernière visite : <b>"+d.toLocaleDateString("fr-FR")+" à "+
+          pad(d.getHours())+"h"+pad(d.getMinutes())+"</b> ("+dureeTxt(cur.ts - ref.ts)+")"+
+          " · prix "+num(ref.px,0)+" $ → <b>"+num(cur.px,0)+" $</b> ("+sgn((cur.px/ref.px-1)*100,2)+" %)";
+  if(r.lo !== null) h += " · depuis : plus bas "+num(r.lo,0)+" $, plus haut "+num(r.hi,0)+" $";
+  h += "</div>";
+  var ev = visitEvents(ref, cur, r.lo, r.hi);
+  if(!ev.length)
+    return h + "<div class='note'><b>Rien de notable.</b> Aucun palier, régime, divergence, niveau clé ni invalidation n'a changé. C'est la réponse normale la plupart du temps.</div>";
+  ev.sort(function(a,b){ return (b.fort?1:0) - (a.fort?1:0); });
+  h += "<table style='margin-top:10px'><tbody>";
+  ev.forEach(function(e){
+    h += "<tr><td style='width:1%'>"+tg(e.fort ? ["à regarder","t-org"] : ["à noter","t-neu"])+
+         "</td><td style='font-size:13.5px'>"+e.txt+"</td></tr>";
+  });
+  return h + "</tbody></table>";
+}
+
+/* La mémoire du navigateur peut être bloquée (navigation privée, réglage de
+   confidentialité, aperçu intégré). Sans elle, afficher « première visite
+   enregistrée » serait faux : rien ne l'est. On le dit franchement. */
+function storageOK(){
+  try{
+    localStorage.setItem("btc_test", "1");
+    var ok = localStorage.getItem("btc_test") === "1";
+    localStorage.removeItem("btc_test");
+    return ok;
+  }catch(e){ return false; }
+}
+
+function renderVisit(){
+  var box = $("visit");
+  if(!storageOK()){
+    box.innerHTML = "<div class='note warn'>Bilan indisponible sur ce navigateur : sa mémoire locale est bloquée (navigation privée ou réglage de confidentialité). Rien ne peut être comparé d'une visite à l'autre. Le reste du cockpit fonctionne, mais tes saisies ne seront pas conservées non plus.</div>";
+    return;
+  }
+  var cur = visitSnapshot();
+  if(!cur){
+    box.innerHTML = "<div class='note warn'>Bilan indisponible : les données du marché ne sont pas chargées. Rien n'a été enregistré — ta visite précédente reste la référence.</div>";
+    return;
+  }
+  var ref = null, fixee = false;
+  try{ var s = sessionStorage.getItem(VISIT_REF); if(s !== null){ ref = JSON.parse(s); fixee = true; } }catch(e){}
+  if(!fixee){
+    try{ var l = localStorage.getItem(VISIT_KEY); ref = l ? JSON.parse(l) : null; }catch(e){ ref = null; }
+    try{ sessionStorage.setItem(VISIT_REF, JSON.stringify(ref)); }catch(e){}
+  }
+  try{ localStorage.setItem(VISIT_KEY, JSON.stringify(cur)); }catch(e){}
+  box.innerHTML = visitHtml(ref, cur);
 }
 
 /* ---------- Bloc pour le prompt ---------- */

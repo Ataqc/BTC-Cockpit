@@ -321,6 +321,74 @@ ok(Rc.dates[0] === R.dates[0] && memePasse(Rc.runs.regime.eq, R.runs.regime.eq) 
 ok(near(C.maxDD([100,120,60,90,130]), 50), "pire perte : une chute de 120 à 60 compte pour 50 %");
 ok(C.mean([]) === null && near(C.mean([1,2,3]), 2), "moyenne d'une liste vide : N/D, jamais 0");
 
+/* ================= 5. DEPUIS TA DERNIÈRE VISITE ================= */
+
+g("Bilan depuis la dernière visite");
+function releve(o){
+  var b = { v:1, ts:Date.UTC(2026,8,1), px:60000,
+            sw:{tier:3, score:4.5}, po:{tier:2, score:6},
+            reg:{d1:"RANGE", w1:"TRANSITION"},
+            div:{d1:{bear:null, bull:null}, w1:{bear:null, bull:null}},
+            e200:55000, sup:58000, res:64000, inv:null, stale:false };
+  for(var k in o) b[k] = o[k];
+  return b;
+}
+var P0 = releve({});
+ok(C.visitEvents(P0, releve({ts:P0.ts + 86400000}), 59000, 61000).length === 0,
+   "rien n'a changé et aucun niveau n'a été touché : aucun événement, le silence est la réponse normale");
+
+var eP = C.visitEvents(P0, releve({po:{tier:1, score:7.4}}), 59000, 61000);
+ok(eP.length === 1 && eP[0].fort && /POSITION/.test(eP[0].txt) && /Vente 10-15/.test(eP[0].txt),
+   "palier POSITION passé à une vente : signalé « à regarder », avec l'action");
+var eS = C.visitEvents(P0, releve({sw:{tier:2, score:6.1}}), 59000, 61000);
+ok(eS.length === 1 && !eS[0].fort && /SWING/.test(eS[0].txt),
+   "palier SWING changé d'un « Rien » à un autre : signalé, mais seulement « à noter »");
+
+ok(C.visitEvents(P0, releve({reg:{d1:"TENDANCE", w1:"TRANSITION"}}), 59000, 61000)
+     .some(function(e){ return /Régime 1 J : RANGE → <b>TENDANCE/.test(e.txt); }),
+   "changement de régime journalier signalé, avec l'avant et l'après");
+ok(C.visitEvents(P0, releve({reg:{d1:"N/D", w1:"TRANSITION"}}), 59000, 61000).length === 0,
+   "un régime devenu N/D n'est pas présenté comme un changement");
+
+var tDiv = Date.UTC(2026,7,20);
+var avecDiv = releve({div:{d1:{bear:tDiv, bull:null}, w1:{bear:null, bull:null}}});
+ok(C.visitEvents(P0, avecDiv, 59000, 61000)
+     .some(function(e){ return e.fort && /divergence baissière confirmée en 1 J/.test(e.txt); }),
+   "nouvelle divergence baissière confirmée : signalée");
+ok(C.visitEvents(avecDiv, releve({div:avecDiv.div}), 59000, 61000).length === 0,
+   "une divergence déjà présente à la visite précédente n'est pas signalée une seconde fois");
+ok(C.visitEvents(releve({div:{d1:null, w1:null}}), avecDiv, 59000, 61000).length === 0,
+   "divergences inconnues à la visite précédente : rien n'est présenté comme « nouveau »");
+
+ok(C.visitEvents(P0, releve({px:54000}), 59000, 61000)
+     .some(function(e){ return /en dessous<\/b> de l'EMA 200/.test(e.txt); }),
+   "passage du prix sous l'EMA 200 journalière : signalé");
+ok(C.visitEvents(P0, releve({}), 57500, 61000)
+     .some(function(e){ return e.fort && /Support de 58/.test(e.txt); }),
+   "plus bas réel sous le support d'alors : support enfoncé, signalé");
+ok(C.visitEvents(P0, releve({}), 59000, 64500)
+     .some(function(e){ return /Résistance de 64/.test(e.txt); }),
+   "plus haut réel au-dessus de la résistance d'alors : signalé");
+ok(C.visitEvents(releve({sup:null, res:null}), releve({}), 10, 999999).length === 0,
+   "aucun niveau connu à la visite précédente : aucune cassure inventée");
+
+var inv = {ts:Date.UTC(2026,7,25), sw:true, po:false, lvlS:62000, lvlP:50000};
+ok(C.visitEvents(releve({inv:{ts:inv.ts, sw:false, po:false, lvlS:62000, lvlP:50000}}), releve({inv:inv}), 59000, 61000)
+     .some(function(e){ return e.fort && /Invalidation SWING/.test(e.txt) && /touchée/.test(e.txt); }),
+   "invalidation swing touchée depuis la visite : signalée « à regarder »");
+ok(C.visitEvents(releve({inv:inv}), releve({inv:inv}), 59000, 61000).length === 0,
+   "invalidation déjà touchée et déjà signalée : pas de répétition à chaque visite");
+
+ok(C.visitEvents(P0, releve({stale:true}), 59000, 61000)
+     .some(function(e){ return /métriques manuelles/.test(e.txt); }),
+   "relevé manuel devenu périmé depuis la visite : signalé");
+ok(C.visitEvents(releve({stale:null}), releve({stale:true}), 59000, 61000).length === 0,
+   "relevé manuel jamais saisi : pas d'alerte de péremption");
+
+ok(C.dureeTxt(2*86400000 + 3*3600000) === "il y a 2 j 3 h" && C.dureeTxt(5*3600000) === "il y a 5 h" &&
+   C.dureeTxt(90000) === "il y a 2 min",
+   "ancienneté de la visite écrite en clair");
+
 /* ================= RÉSULTAT ================= */
 console.log("");
 console.log("Tests du moteur : " + pass + " réussis, " + fail.length + " échoués");
