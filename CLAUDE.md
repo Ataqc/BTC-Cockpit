@@ -423,6 +423,7 @@ transactions par trois.
 - **Robot d'alerte quotidien** le 11 septembre 2026 — volet B des alertes (§15)
 - **Bilan « depuis ta dernière visite »** le 11 septembre 2026 — volet A des
   alertes (§6)
+- **Changement d'ordinateur préparé** le 14 septembre 2026 — procédure en §16
 
 ---
 
@@ -561,3 +562,67 @@ données réelles. Pour l'activer, quand l'utilisateur le demandera : générer 
 de canal aléatoire, l'enregistrer comme secret du dépôt (c'est une modification
 de configuration : demander son accord), le lui donner pour qu'il s'abonne dans
 l'application ntfy, puis déclencher le robot avec l'option « essai ».
+
+---
+
+## 16. Reprise sur un nouvel ordinateur
+
+**La source de vérité est le dépôt GitHub** `https://github.com/Ataqc/BTC-Cockpit`.
+Tout ce qui compte y est : la page, les tests, le robot, ce briefing. Le site en
+ligne (GitHub Pages) et le robot d'alerte (GitHub Actions) tournent chez GitHub :
+**un changement d'ordinateur ne les touche pas.**
+
+État vérifié le 14 septembre 2026 sur l'ancien ordinateur, avant le départ :
+aucun commit en attente, aucune modification non enregistrée, mémoire de session
+Claude vide (tout le contexte est ici), aucun secret de dépôt configuré.
+
+### Ce qui ne suit PAS, et ce qu'il faut en faire
+
+| Élément | Où il vivait | Sur le nouvel ordinateur |
+|---|---|---|
+| Code, tests, briefing | dépôt GitHub | récupéré par le clonage |
+| `node_modules/` (jsdom) | disque local, ignoré par git | `npm ci` le réinstalle |
+| `.claude/launch.json` (serveur d'aperçu local) | disque local, ignoré par git | à recréer si besoin : `python -m http.server 8765` |
+| Identité git du dépôt | configuration locale | à reposer (voir ci-dessous) |
+| Connexion GitHub (`gh`, envoi des commits) | trousseau de l'ancien ordinateur | **l'utilisateur** se reconnecte lui-même dans son navigateur |
+| **Saisies de la page** : position, PRU, cash, relevés manuels, historique des analyses, référence du bilan de visite | `localStorage` du navigateur de l'ancien ordinateur | **ne suivent pas.** La synchronisation des navigateurs ne copie pas ces données. À ressaisir, sauf si une fonction d'export/import a été ajoutée entre-temps |
+
+### Checklist de la première session sur le nouvel ordinateur
+
+À dérouler dans l'ordre, sans rien redemander à l'utilisateur sauf la connexion GitHub :
+
+1. **Outils** : vérifier `git --version`, `node --version` (≥ 20, la CI tourne en
+   20), `gh --version`. S'il en manque, dire à l'utilisateur lequel installer
+   depuis le site officiel (Git for Windows, Node.js LTS, GitHub CLI) — ne jamais
+   télécharger d'installeur à sa place.
+2. **Clonage**, si le dossier n'existe pas encore :
+   `git clone https://github.com/Ataqc/BTC-Cockpit.git`, puis travailler dans ce
+   dossier. Si la session a été ouverte sur le dossier parent, dire à
+   l'utilisateur d'ouvrir une nouvelle session sur `BTC-Cockpit` pour que ce
+   briefing se charge automatiquement.
+3. **Identité git, locale au dépôt** — l'adresse *noreply*, **jamais l'adresse
+   e-mail réelle**, le dépôt est public :
+   `git config user.name "Ataqc"` et
+   `git config user.email "Ataqc@users.noreply.github.com"`.
+4. **Dépendances de test** : `npm ci`, puis `npm test`. Attendu : moteur 116,
+   robot 17, page 68 — **201 vérifications, 0 échec**. Un échec ici veut dire que
+   l'environnement diffère : le diagnostiquer avant toute modification.
+5. **Connexion GitHub** : `gh auth status`. Si l'utilisateur n'est pas connecté,
+   lui demander de faire lui-même `gh auth login` (navigateur, compte `Ataqc`) —
+   ne jamais saisir d'identifiant ni de mot de passe à sa place. Au premier envoi
+   de commit, Git peut aussi ouvrir une fenêtre de connexion : c'est à lui de la
+   remplir.
+6. **Contrôle de santé à distance** : `gh run list --limit 5` — la dernière
+   exécution « Tests » et les passages nocturnes « Alerte quotidienne BTC »
+   doivent être en succès. Vérifier aussi que le site répond :
+   `https://ataqc.github.io/BTC-Cockpit/`.
+7. **Rappeler à l'utilisateur** que ses saisies de la page ne l'ont pas suivi
+   (tableau ci-dessus), et que le bilan « depuis ta dernière visite » affichera
+   « première visite » sur ce nouveau navigateur : c'est normal.
+
+### Ancien ordinateur
+
+Rien à supprimer, rien à désactiver : il ne fait tourner aucune tâche. Le dossier
+local peut rester ou être effacé, GitHub a tout. **Seule précaution** : ne pas y
+faire de nouveaux commits sans d'abord récupérer ceux du nouvel ordinateur
+(`git pull`), sinon les deux copies divergeront.

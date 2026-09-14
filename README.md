@@ -96,9 +96,15 @@ marché durablement baissier.
 ## Pour développer (pas nécessaire pour utiliser)
 
 ```bash
-npm install
+git clone https://github.com/Ataqc/BTC-Cockpit.git
+cd BTC-Cockpit
+npm ci
 npm test
 ```
+
+Nouvel ordinateur : la procédure complète, et ce qui ne suit pas (les saisies de
+la page restent dans le navigateur de l'ancien appareil), est dans
+[CLAUDE.md, §16](CLAUDE.md).
 
 La page elle-même n'a **aucune dépendance** : elle s'ouvre au double-clic et
 doit encore fonctionner dans dix ans. `jsdom` ne sert qu'aux tests.
