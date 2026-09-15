@@ -89,8 +89,11 @@ marché durablement baissier.
   modifiée.**
 - **La valorisation prédit, le momentum non.** Un MVRV élevé a été suivi de
   rendements inférieurs à la moyenne ; un RSI élevé, de rendements supérieurs.
-- **Point ouvert** : les sommets de MVRV rétrécissent d'un cycle à l'autre. Les
-  seuils pourraient ne plus se déclencher. À étudier, pas à régler sur le passé.
+- **Bandes MVRV relatives : testées et écartées.** Les sommets de MVRV rétrécissent
+  d'un cycle à l'autre, mais mesurer le MVRV par rapport aux quatre dernières années
+  vend beaucoup trop tôt pendant les hausses : moins bien que les bandes actuelles en
+  2014-2016, 2016-2020 et 2020-2024. Des seuils qui se déclenchent rarement valent
+  mieux qu'une règle qui vend trop tôt.
 
 ## Alertes
 

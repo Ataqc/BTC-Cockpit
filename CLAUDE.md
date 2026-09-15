@@ -421,8 +421,9 @@ qu'ils sont dans l'onglet Backtest et nulle part ailleurs.
 - **Les sommets de MVRV rétrécissent d'un cycle à l'autre** (Z ≈ 10 en 2013, 9 en
   2017, 7 en 2021, 3,4 fin 2024, 3,1 début 2025 chez lookintobitcoin). Les bandes du
   §8 et l'exception MVRV (sous-score ≥ 8,5, soit Z ≥ 7) risquent de ne plus jamais se
-  déclencher. C'est une question de calibration ouverte, **pas un réglage à faire
-  sur quatre cycles** : voir §14.
+  déclencher. **Des bandes relatives ont été testées et écartées le 15 septembre
+  2026** (§14). En pratique, des seuils qui ne se déclenchent plus veulent dire que
+  POSITION vend rarement — ce que le backtest ne montre pas comme coûteux.
 
 ---
 
@@ -515,6 +516,7 @@ qu'ils sont dans l'onglet Backtest et nulle part ailleurs.
   Metrics, §5) ; backtest POSITION et backtest SWING 4 heures (§10, résultats §14) ;
   étapes 2 et 3 de la chaîne partagées par le cockpit et les backtests (`tierRules`,
   §9) ; sauvegarde et restauration des saisies (§6) ; onglet Backtest réparé
+- **MVRV relatif testé et écarté** le 15 septembre 2026 (§14) : aucune règle modifiée
 
 ---
 
@@ -700,6 +702,58 @@ lues sur les clôtures, pas sur les mèches ; fenêtres de rendement qui se chev
 Pour rejouer ces chiffres : onglet Backtest, horizon POSITION, en tronquant
 l'historique aux dates des halvings (28/11/2012, 09/07/2016, 11/05/2020, 20/04/2024).
 
+### MVRV relatif — testé et écarté (15 septembre 2026)
+
+Question : remplacer les bandes absolues du MVRV Z-score, dont les sommets
+rétrécissent, par une mesure relative. **Protocole fixé avant tout calcul** —
+variantes, fenêtres et critères d'adoption :
+- A — bandes absolues actuelles ;
+- B — sous-score = 10 × rang du Z-score du jour parmi les 4 dernières années (un
+  cycle de halving), la méthode déjà utilisée pour le MACD et la structure ;
+  exception MVRV inchangée (sous-score ≥ 8,5) ;
+- C — score comme B, exception lue sur le Z-score absolu ;
+- robustesse, pas sélection : B avec des fenêtres de 2 et 6 ans.
+
+Critères : battre A sur chaque cycle disponible et à la plupart des carences, sans
+pire perte plus profonde ; rangs élevés suivis de rendements inférieurs à la moyenne
+dans les deux moitiés de l'historique. Premier jour testable : juillet 2014 (il faut
+4 ans d'historique). Mêmes réglages que le backtest POSITION ci-dessus.
+
+Écart avec A (règles actuelles POSITION), en points, carence 7 / 30 / 60 jours :
+
+| Cycle | B — rang sur 4 ans | C — rang, exception absolue |
+|---|---|---|
+| 2014-2016 | −14 / −11 / −7 | −14 / −11 / −7 |
+| 2016-2020 | −1149 / −949 / −868 | −1087 / −689 / −900 |
+| 2020-2024 | −331 / −147 / −167 | −306 / −88 / −113 |
+| 2024-2026 (en cours) | +8 / +21 / +9 | +9 / +21 / +9 |
+
+Rendement moyen à 90 / 180 jours quand le sous-score MVRV atteint 8,5 :
+
+| Période | Bandes absolues | Rang sur 4 ans | Tous les jours |
+|---|---|---|---|
+| 2014-2020 | −46,7 % / −58,4 % (14 jours) | +86,1 % / +189,1 % (308 jours) | +24,5 % / +61,3 % |
+| 2020-2026 | −30,7 % / −16,9 % (2 jours) | +6,6 % / −3,1 % (233 jours) | +15,5 % / +36,7 % |
+
+**Verdict : écarté, aucun critère n'est rempli.** Le rang relatif perd face aux
+bandes absolues en 2014-2016, 2016-2020 et 2020-2024, à toutes les carences, et avec
+les autres fenêtres là où elles sont calculables (2 ans, carence 30 jours : +224 % et
++287 % contre +1270 % et +568 %). Il réduit bien la pire perte, jusqu'à 22 points,
+mais parce qu'il vend beaucoup plus : la zone d'exception passe de 0 à 1 % des jours
+à 9 à 22 %. **Pourquoi** : un rang sur quelques années transforme la valorisation en
+momentum. Pendant une hausse, le Z-score est « au plus haut depuis 4 ans » des mois
+durant, bien avant le sommet ; en 2014-2020, ces jours-là ont été suivis de +86 % à
+90 jours. Le seul cycle favorable est celui en cours, trop court pour compter.
+
+**Conséquence pratique de la dérive des sommets** : si les bandes absolues ne se
+déclenchent plus, POSITION vend rarement. Le backtest ne montre pas ce comportement
+comme coûteux (« sans aucune vente » reste proche des règles actuelles, sauf en
+2012-2016). Mieux vaut une règle qui se tait qu'une règle qui vend trop tôt.
+
+**Ne pas retester des variantes voisines** (autre fenêtre, autre seuil, autre
+métrique relative) sur les mêmes cycles : chaque essai de plus augmente la chance
+de trouver un gagnant par hasard.
+
 **Prochaines étapes possibles, par ordre de valeur :**
 1. **Alertes**, en deux volets choisis le 11 septembre 2026 :
    - **A — fait** : bilan « depuis ta dernière visite » en tête du cockpit (§6).
@@ -707,10 +761,7 @@ l'historique aux dates des halvings (28/11/2012, 09/07/2016, 11/05/2020, 20/04/2
      Actions, notification iPhone via ntfy. Canal pas encore configuré.
 2. ~~Backtest 4H~~ — **fait le 15 septembre 2026**, ci-dessus.
 3. ~~Backtest POSITION~~ — **fait le 15 septembre 2026**, ci-dessus.
-4. **Calibration du MVRV face au rétrécissement des sommets** : bandes relatives (rang
-   percentile du Z-score sur plusieurs années, par exemple) plutôt qu'absolues. À
-   tester avec une période de validation distincte, jamais en ajustant sur les
-   quatre cycles connus.
+4. ~~Bandes MVRV relatives~~ — **testées et écartées le 15 septembre 2026**, ci-dessus.
 5. **Robot d'alerte et MVRV** : le robot pourrait lire Coin Metrics et signaler un
    changement de bande MVRV, qui ne dépend d'aucune donnée personnelle.
 
