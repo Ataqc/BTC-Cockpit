@@ -517,6 +517,7 @@ qu'ils sont dans l'onglet Backtest et nulle part ailleurs.
   étapes 2 et 3 de la chaîne partagées par le cockpit et les backtests (`tierRules`,
   §9) ; sauvegarde et restauration des saisies (§6) ; onglet Backtest réparé
 - **MVRV relatif testé et écarté** le 15 septembre 2026 (§14) : aucune règle modifiée
+- **Notifications iPhone activées** le 15 septembre 2026 (§15)
 
 ---
 
@@ -758,7 +759,7 @@ de trouver un gagnant par hasard.
 1. **Alertes**, en deux volets choisis le 11 septembre 2026 :
    - **A — fait** : bilan « depuis ta dernière visite » en tête du cockpit (§6).
    - **B — construit le 11 septembre 2026** (§15) : robot quotidien sur GitHub
-     Actions, notification iPhone via ntfy. Canal pas encore configuré.
+     Actions, notification iPhone via ntfy. Canal activé le 15 septembre 2026.
 2. ~~Backtest 4H~~ — **fait le 15 septembre 2026**, ci-dessus.
 3. ~~Backtest POSITION~~ — **fait le 15 septembre 2026**, ci-dessus.
 4. ~~Bandes MVRV relatives~~ — **testées et écartées le 15 septembre 2026**, ci-dessus.
@@ -811,13 +812,17 @@ fait un passage à blanc : il calcule, affiche ce qu'il enverrait, n'envoie rien
 Déclenchement manuel possible depuis l'onglet Actions du dépôt, avec l'option
 « essai » pour recevoir une notification même si rien n'a changé.
 
-**État au 11 septembre 2026 : canal non configuré, à la demande de l'utilisateur.**
-Le secret `NTFY_TOPIC` n'existe pas : le robot tourne chaque nuit en passage à
-blanc et n'envoie rien. Passage à blanc vérifié le jour même depuis GitHub, sur
-données réelles. Pour l'activer, quand l'utilisateur le demandera : générer un nom
-de canal aléatoire, l'enregistrer comme secret du dépôt (c'est une modification
-de configuration : demander son accord), le lui donner pour qu'il s'abonne dans
-l'application ntfy, puis déclencher le robot avec l'option « essai ».
+**Canal activé le 15 septembre 2026, à la demande de l'utilisateur.** Nom tiré au
+hasard (`btc-cockpit-` + 20 caractères), enregistré seulement comme secret
+`NTFY_TOPIC` et donné à l'utilisateur, abonné dans l'application ntfy sur son
+iPhone. **Le nom ne doit jamais apparaître dans un fichier, un commit ni un message
+de commit.** Premier passage manuel le jour même, option « essai » : deux
+changements réels à signaler (support enfoncé, résistance franchie), notification
+acceptée par ntfy (« Notification envoyée. » dans le journal GitHub).
+
+Pour changer de canal (nom divulgué, nouveau téléphone) : tirer un nouveau nom,
+remplacer le secret, le donner à l'utilisateur, relancer le robot avec « essai ».
+Pour couper les alertes : supprimer le secret — le robot repasse en passage à blanc.
 
 ---
 
