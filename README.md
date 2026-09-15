@@ -8,7 +8,7 @@ Une seule page autonome à deux onglets, sans installation, sans compte, sans cl
 | Onglet | À quoi il sert | Lien |
 |---|---|---|
 | **Cockpit** | Récupère les données du marché et calcule tout ce qui est calculable : indicateurs, régime, divergences, niveaux, scores, chaîne de décision | [ouvrir](https://ataqc.github.io/BTC-Cockpit/) |
-| **Backtest** | Rejoue le score et les règles sur l'historique réel pour vérifier si elles tiennent | [ouvrir](https://ataqc.github.io/BTC-Cockpit/#backtest) |
+| **Backtest** | Rejoue le score et les règles sur l'historique réel — SWING en journalier ou en 4 heures, POSITION avec le MVRV — pour vérifier si elles tiennent | [ouvrir](https://ataqc.github.io/BTC-Cockpit/#backtest) |
 | **Prompt d'analyse** | Ce qu'on donne à lire à l'IA une fois le bloc de données copié — un document, pas un onglet | [prompt-analyse-v3.md](prompt-analyse-v3.md) |
 
 ## Le principe
@@ -24,7 +24,7 @@ faire.
 
 ## Ce que la pastille verte en haut veut dire
 
-À chaque modification envoyée sur GitHub, 201 vérifications automatiques
+À chaque modification envoyée sur GitHub, 279 vérifications automatiques
 s'exécutent :
 
 - **le moteur de calcul** — chaque indicateur est confronté à une série dont on
@@ -34,7 +34,12 @@ s'exécutent :
   qu'une seule copie. On vérifie qu'il n'exécute jamais un ordre au cours qui a
   servi à décider, qu'il respecte le délai de carence, qu'il ne vend jamais sous
   les règles actuelles, et surtout qu'il ne lit pas l'avenir : couper la fin de
-  l'historique ne doit pas changer un seul jour du passé ;
+  l'historique ne doit pas changer un seul jour du passé. En 4 heures et en
+  POSITION, on vérifie en plus qu'il note chaque jour exactement comme le cockpit ;
+- **le MVRV automatique** — recalculé à partir de Coin Metrics, vérifié sur un
+  exemple calculé à la main, sans jamais lire l'avenir ;
+- **la sauvegarde de tes saisies** — un fichier étranger est refusé, et rien n'est
+  remplacé sans ta confirmation ;
 - **le robot d'alerte** — sur des bougies synthétiques : il compare la bonne
   période, ne signale jamais de palier POSITION ni de vente, et alerte vraiment
   quand le prix s'effondre ;
@@ -71,6 +76,22 @@ jamais utilisée pour établir le constat :
 Ces chiffres portent sur deux périodes globalement haussières. Aucune ne teste un
 marché durablement baissier.
 
+## Ce que les backtests 4 heures et POSITION ont montré (15 septembre 2026)
+
+- **En 4 heures, le constat swing tient.** Avec le score complet du cockpit, un score
+  de vente a encore précédé des rendements supérieurs à la moyenne, sur les deux
+  périodes. Le retrait des ventes swing est confirmé ; le côté achat n'a pas de
+  valeur de timing, son avance vient de l'exposition au bitcoin.
+- **POSITION se comporte autrement.** Testé sur quatre cycles depuis 2012 grâce à
+  l'historique MVRV de Coin Metrics : la règle de régime filtre réellement les
+  mauvaises ventes, les ventes retenues ont eu de la valeur deux cycles sur trois,
+  et les garder réduit nettement la pire perte. **Aucune règle POSITION n'a été
+  modifiée.**
+- **La valorisation prédit, le momentum non.** Un MVRV élevé a été suivi de
+  rendements inférieurs à la moyenne ; un RSI élevé, de rendements supérieurs.
+- **Point ouvert** : les sommets de MVRV rétrécissent d'un cycle à l'autre. Les
+  seuils pourraient ne plus se déclencher. À étudier, pas à régler sur le passé.
+
 ## Alertes
 
 - **Dans la page** : le bloc « Depuis ta dernière visite », en tête du cockpit, ne
@@ -89,7 +110,11 @@ marché durablement baissier.
 - Aucun levier, aucun future, aucun perpétuel : **spot uniquement**.
 - Aucun conseil en investissement. L'outil propose, la décision reste humaine.
 - Aucune donnée personnelle dans le dépôt : position, PRU, cash et relevés
-  manuels restent dans le navigateur de l'appareil (`localStorage`).
+  manuels restent dans le navigateur de l'appareil (`localStorage`). Le fichier de
+  sauvegarde que tu exportes les contient : garde-le pour toi.
+- Aucune clé, aucun abonnement : Binance, Alternative.me et Coin Metrics (MVRV et
+  prix réalisé, licence CC BY-NC 4.0) sont gratuits. Flux ETF, réserves et premium
+  Coinbase restent à saisir à la main.
 - Aucune valeur inventée : quand une donnée manque **ou qu'elle est périmée**,
   elle vaut N/D et son poids est redistribué, en le disant.
 

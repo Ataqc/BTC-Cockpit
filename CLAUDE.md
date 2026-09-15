@@ -101,12 +101,25 @@ Toutes gratuites, sans clé, appelées directement depuis le navigateur.
 | Prix, bougies 4H / 1D / 1W | `api.binance.com` | temps réel |
 | Funding, open interest, long/short | `fapi.binance.com` | temps réel |
 | Fear & Greed | `api.alternative.me` | quotidienne |
-| MVRV Z-score, prix réalisé, flux ETF, réserves exchanges, Coinbase premium | **saisie manuelle** | hebdomadaire |
+| MVRV Z-score, ratio MVRV, prix réalisé — et l'historique quotidien depuis 2010 pour le backtest POSITION | `community-api.coinmetrics.io` (gratuit, sans clé, licence CC BY-NC 4.0 : citer la source, c'est fait en bas de page) | quotidienne (journée de la veille) |
+| Flux ETF, réserves exchanges, Coinbase premium | **saisie manuelle** | hebdomadaire |
 | Liquidations 24 h | **aucune** — reste N/D | — |
 
-Les cinq métriques manuelles n'ont **aucune API gratuite**. Des liens vers les
-dashboards publics (bitbo, lookintobitcoin, Farside, CryptoQuant) sont dans la
-page. C'est un choix assumé après avoir chiffré les alternatives payantes :
+**MVRV automatique depuis le 15 septembre 2026.** Coin Metrics ne publie pas le
+Z-score : la page le recalcule. Z = (capitalisation de marché − capitalisation
+réalisée) ÷ écart-type de la capitalisation, avec capitalisation réalisée =
+capitalisation ÷ ratio MVRV. **L'écart-type ne porte que sur les jours connus à
+chaque date** (population, depuis juillet 2010) : c'est la méthode de
+lookintobitcoin, déduite de ses propres chiffres. Vérification du 15 septembre 2026
+contre la série de lookintobitcoin, un point tous les trois jours : depuis 2014,
+écart moyen **0,006**, même bande MVRV **99,8 %** du temps, sous-score jamais
+décalé de plus de 0,06 point. Calculé sur tout l'historique d'un coup, le Z-score ne
+dépasserait jamais 2,3 : ce serait faux, et ce serait lire l'avenir dans un
+backtest. Bitbo est protégé par une vérification anti-robot : ne pas la contourner.
+
+Les trois métriques encore manuelles n'ont **aucune API gratuite**. Des liens vers
+les dashboards publics (Farside, CryptoQuant ; bitbo et lookintobitcoin pour le MVRV
+de secours) sont dans la page. C'est un choix assumé après avoir chiffré les alternatives payantes :
 Glassnode Studio à 49 $/mois n'inclut même pas l'accès API, et les offres avec
 API sont hors de proportion pour une position individuelle.
 
@@ -129,6 +142,10 @@ utilisés en repli automatique si le principal échoue.
 - **Chaîne de décision** complète (voir §9)
 - **Historique des analyses** avec vérification de l'invalidation sur bougies réelles
 - **Bilan « depuis ta dernière visite »**, en tête du cockpit (voir ci-dessous)
+- **MVRV Z-score et prix réalisé automatiques** (Coin Metrics, §5) : un seul
+  téléchargement par jour et par appareil (`btc_cm` en `localStorage`) ; les
+  champs manuels du MVRV et du prix réalisé ne servent plus qu'en secours
+- **Sauvegarde des saisies** : export dans un fichier et import (voir ci-dessous)
 
 **Bilan « depuis ta dernière visite »** — volet A des alertes. Il compare ce que
 le cockpit affiche à ce qu'il affichait lors de la visite précédente **sur cet
@@ -151,6 +168,17 @@ réponse normale. Il **rapporte**, il ne décide rien.
 - Plus bas / plus haut depuis la visite : uniquement les bougies 4 H **ouvertes
   après** la visite, plus le prix actuel. Mieux vaut rater quelques heures que
   sonner à tort.
+
+**Sauvegarde des saisies** — export des champs (position, PRU, cash, relevés
+manuels et leur date) et de l'historique des analyses dans un fichier
+`btc-cockpit-sauvegarde-AAAA-MM-JJ.json`, créé sur l'appareil. Import en deux
+temps : le contenu est annoncé, rien n'est remplacé avant confirmation ;
+l'historique est fusionné sans doublon. Un fichier étranger, illisible ou de version
+inconnue est refusé en bloc ; dans un fichier valable, les balises sont retirées,
+une date illisible est écartée, chaque champ d'analyse est vérifié. Tout texte saisi
+ou importé passe par `esc` avant d'être affiché. La référence du bilan de visite et
+le MVRV automatique ne sont pas exportés. Le fichier contient la position : le
+`.gitignore` l'écarte du dépôt public, et la page le dit.
 
 **Règle absolue : tous les indicateurs sont calculés uniquement sur bougies
 CLÔTURÉES.** Binance renvoie la bougie en cours en dernier ; elle est filtrée par
@@ -196,9 +224,14 @@ divergence et on retient la lecture **la plus lente** (1D prime sur 4H, 1W sur 1
 pas une donnée : c'est une valeur par défaut qui agit en silence. La date se
 remplit automatiquement à la première saisie et reste modifiable.
 
+**MVRV du score position** : Coin Metrics s'il est frais (donnée de moins de
+`CM_MAX_AGE` = 4 jours), sinon la saisie de secours si elle est fraîche, sinon N/D.
+La source retenue est toujours écrite dans le verdict et dans le bloc.
+
 **Composante N/D** (absente **ou périmée**) : exclue, poids restants renormalisés, et **c'est dit**
-explicitement dans l'interface et dans le bloc généré. Cas fréquent : le MVRV vide
-fait tomber le score position sur 60 % du barème seulement.
+explicitement dans l'interface et dans le bloc généré. Depuis le MVRV automatique, le
+score position ne tombe sur 60 % du barème que si Coin Metrics est injoignable et
+que la saisie de secours est vide ou périmée.
 
 ---
 
@@ -289,6 +322,13 @@ Dans cet ordre, sans exception :
 5. **Filtre de risque** — si les signaux contraires sont plus nombreux que les
    alignés, l'action est réduite d'un cran (jamais amplifiée).
 
+Les étapes 2 et 3 vivent dans **une seule fonction pure**, `tierRules`, appelée par
+le cockpit (`decide`) et par les trois backtests. Le 15 septembre 2026, elle a
+remplacé une copie propre au backtest swing, qui lisait la tendance baissière
+autrement que le cockpit (prix sous l'EMA 50 au lieu d'EMA 50 sous EMA 200) — sans
+effet sur les résultats réels (§14), mais le backtest ne mesurait pas exactement la
+règle du cockpit.
+
 **Les 7 signaux du gate** : momentum/volume, croisement prix/OI, funding,
 long/short ratio, liquidations (toujours N/D), Fear & Greed, flux ETF/on-chain.
 
@@ -305,39 +345,60 @@ avoir un décompte différent — ce n'est pas un bug.
 
 ## 10. Le backtest (onglet `#backtest` de `index.html`)
 
-Rejoue le score et la table d'action sur l'historique réel, et compare trois
-variantes : **les règles actuelles du cockpit** (sans vente swing, achat réduit en
-tendance baissière), **la grille d'origine** qui vendait sur score élevé, et **ne
-rien faire**.
+Trois horizons au choix, chacun comparé à des variantes et au fait de ne rien faire :
+
+| Horizon testé | Données | Décision → exécution | Variantes |
+|---|---|---|---|
+| **SWING journalier** | Binance 1 J | clôture du jour → ouverture du lendemain | règles actuelles · grille d'origine |
+| **SWING 4 heures** (score complet, comme le cockpit) | Binance 4 H + 1 J, depuis août 2017 | chaque clôture 4 H → ouverture de la bougie 4 H suivante | règles actuelles · grille d'origine |
+| **POSITION** | Coin Metrics : prix de référence, capitalisation, MVRV, depuis 2010 | clôture du jour → prix de référence du lendemain (cette série n'a pas de cours d'ouverture) | règles actuelles · sans l'exception MVRV · sans aucune vente · grille brute |
 
 **Une seule copie des formules.** Jusqu'au 11 septembre 2026, `backtest.html`
-contenait sa propre copie des indicateurs, et un test vérifiait que les deux copies
-restaient d'accord — elles avaient déjà divergé une fois. Le backtest vit
-désormais dans la même page et appelle directement les fonctions du cockpit : la
-dérive est devenue impossible, et un test échoue si une seconde définition
-réapparaît. L'historique n'est téléchargé que quand on lance le calcul.
+contenait sa propre copie des indicateurs — elles avaient déjà divergé une fois. Le
+backtest vit désormais dans la même page et appelle directement les fonctions du
+cockpit : `rsiSeries`, `macdSeries`, `emaSeries`, `pctRank`, `agg`, `weighted`,
+`mvrvScore`, `mvrvZSeries`, `regimeOf`, `divergences`, `tierRules`, `W_SWING`,
+`W_POS`, `TIERS`. Un test échoue si une seconde définition réapparaît, et **un test
+d'équivalence** fait noter les mêmes données au cockpit et aux backtests 4 H et
+POSITION : les scores doivent être identiques. L'historique n'est téléchargé que
+quand on lance le calcul.
 
 **Protections contre la triche au futur — à préserver absolument :**
-- Décision à la **clôture** du jour, exécution à l'**ouverture du lendemain**
-- Divergences uniquement sur sommets **confirmés** (3 bougies de chaque côté) — le
-  backtest n'en utilise plus depuis le retrait des ventes swing ; toute
-  réintroduction doit respecter cette règle
-- **Test anti-triche** : tronquer la fin de l'historique ne doit modifier aucun jour antérieur
+- Décision à la **clôture**, exécution au **cours suivant**
+- En 4 H, la bougie journalière lue est **la dernière close** à la clôture 4 H
+- Bougies hebdomadaires du backtest POSITION reconstituées lundi-dimanche UTC : une
+  semaine n'existe qu'**une fois son dimanche passé**
+- MVRV Z-score **causal** : chaque jour ne connaît que l'histoire jusqu'à ce jour
+- Divergences uniquement sur sommets **confirmés** (3 bougies de chaque côté) —
+  lues sur l'hebdomadaire en POSITION
+- **Test anti-triche** sur les trois moteurs : tronquer la fin de l'historique ne
+  doit modifier aucun jour antérieur
 - Percentiles calculés sur les **200 bougies précédentes** seulement
 - Indicateurs causals calculés une fois sur toute la série puis lus à l'instant t
   (mathématiquement équivalent à un recalcul glissant, mais O(n) au lieu de O(n²))
+- Délai de carence compté en **temps réel** : 7 jours valent 7 jours en 1 J comme en 4 H
 
 **Ce qu'il ne teste pas, et pourquoi :**
 - Le gate des 7 signaux — pas d'historique gratuit pour funding / OI / liquidations
-- L'horizon POSITION — dépend à 40 % du MVRV, sans historique gratuit
-- Il juge donc **l'horizon SWING sur bougies journalières**. C'est écrit en haut
-  de la page, ne pas le masquer.
+- En POSITION : les mèches hebdomadaires (divergences lues sur les clôtures) et le
+  cours d'ouverture (exécution au prix de référence du lendemain)
+- Les années 2010-2012 reposent sur un marché minuscule : lire POSITION cycle par
+  cycle. C'est écrit dans la page, ne pas le masquer.
 
 **Découverte du backtest, déjà intégrée :** la grille n'avait aucun **délai de
 carence**. Tant que le score restait dans sa zone, elle redéclenchait la même
 action chaque jour et vidait la position par tranches. Un paramètre réglable a été
-ajouté (défaut 7 jours). Sur données de test, passer de 0 à 7 jours divisait les
-transactions par trois.
+ajouté (défaut 7 jours ; options 0, 14, 30 et 60). Sur données de test, passer de 0
+à 7 jours divisait les transactions par trois.
+
+**Tableau « valeur prédictive »** : rendement moyen après chaque signal, comparé à la
+moyenne de **tous les jours** de la période — et plus seulement à zéro, qui flattait
+n'importe quel signal d'achat dans un marché haussier. Lecture à 15 jours en swing,
+90 jours en POSITION.
+
+**Réparé le 15 septembre 2026** : les réglages et les résultats du backtest étaient
+hors de l'onglet et s'affichaient aussi sous le cockpit. Un test vérifie désormais
+qu'ils sont dans l'onglet Backtest et nulle part ailleurs.
 
 ---
 
@@ -354,6 +415,14 @@ transactions par trois.
   ensuite. En cas de recalibrage, imposer une période de validation distincte de
   celle utilisée pour régler.
 - Les liquidations restent N/D. Ne pas inventer de substitut.
+- **Le MVRV automatique dépend d'un tiers gratuit.** Si Coin Metrics ferme son API
+  communautaire ou change sa méthode, la saisie de secours reprend et la page le dit.
+  Le recalcul du Z-score n'a été validé que contre lookintobitcoin.
+- **Les sommets de MVRV rétrécissent d'un cycle à l'autre** (Z ≈ 10 en 2013, 9 en
+  2017, 7 en 2021, 3,4 fin 2024, 3,1 début 2025 chez lookintobitcoin). Les bandes du
+  §8 et l'exception MVRV (sous-score ≥ 8,5, soit Z ≥ 7) risquent de ne plus jamais se
+  déclencher. C'est une question de calibration ouverte, **pas un réglage à faire
+  sur quatre cycles** : voir §14.
 
 ---
 
@@ -364,7 +433,7 @@ transactions par trois.
     minimal simulé. Les tests appellent donc les **vraies** fonctions des vraies
     pages : ne recopie jamais une formule dans un test, un test qui recopie ce
     qu'il vérifie ne vérifie rien.
-  - `tests/engine.test.js` (116 vérifications, zéro dépendance) : identités
+  - `tests/engine.test.js` (174 vérifications, zéro dépendance) : identités
     mathématiques (moyenne mobile sur série constante = la constante, RSI sur série
     croissante = 100, décroissante = 0, plate = 50), chaîne de décision, péremption,
     **unicité des formules** (chaque indicateur défini une seule fois dans la page)
@@ -372,12 +441,21 @@ transactions par trois.
     carence, aucune vente sous les règles actuelles, et **aucune lecture de
     l'avenir** — tronquer l'historique ne doit changer aucun jour passé. Plus le
     **bilan de visite** : aucun événement sans changement constaté des deux côtés,
-    aucune répétition d'un événement déjà signalé.
-  - `tests/page.test.js` (68 vérifications, `jsdom`) : charge `index.html` entière
+    aucune répétition d'un événement déjà signalé. Depuis le 15 septembre 2026 :
+    `tierRules`, MVRV Z-score (exemple calculé à la main, aucune lecture de
+    l'avenir), bougies hebdomadaires reconstituées, **backtests 4 H et POSITION**
+    (exécution au cours suivant, carence, aucune vente sous les règles actuelles,
+    troncature sans effet sur le passé, **scores identiques à ceux du cockpit**) et
+    sauvegarde des saisies (refus des fichiers étrangers, nettoyage, fusion).
+  - `tests/page.test.js` (88 vérifications, `jsdom`) : charge `index.html` entière
     avec un faux réseau et vérifie le rendu, les scores, le bloc généré, la
     péremption, la bascule des onglets (par clic et par adresse), un backtest
     complet, le bilan de visite (référence conservée pendant la visite, jamais
-    écrasée si les données manquent) et l'absence d'erreur JavaScript.
+    écrasée si les données manquent) et l'absence d'erreur JavaScript. Depuis le
+    15 septembre 2026 : Coin Metrics injoignable (secours annoncé), Coin Metrics
+    disponible dans une seconde page simulée (MVRV sur 100 % du barème, bloc, cache
+    du jour), backtests POSITION et 4 H complets, export puis import confirmé,
+    réglages du backtest dans leur onglet.
   - `tests/robot.test.js` (17 vérifications, zéro dépendance) : période comparée
     par le robot d'alerte, bougie en cours écartée, aucun palier POSITION ni
     aucune vente, alerte réelle sur une chute synthétique, notification sans
@@ -390,7 +468,12 @@ transactions par trois.
     `README`. C'est le seul signal de santé lisible sans terminal —
     **ne le laisse jamais rouge**.
   - Quand tu ajoutes une règle, ajoute le test qui échoue si on la retire. Vérifie
-    que le test mord vraiment : casse la règle exprès, la suite doit rougir.
+    que le test mord vraiment : casse la règle exprès, la suite doit rougir. Fait le
+    15 septembre 2026, sur une copie isolée, pour huit cassures : bougie journalière
+    du jour lue en 4 H, vente swing réautorisée, exécution POSITION au prix de
+    décision, seuil de l'exception MVRV abaissé, import sans nettoyage, hebdomadaire
+    lu une semaine en avance, Z-score faussé, pondération recopiée en dur. Chacune
+    fait rougir la suite.
 - **Ne fabrique jamais un chiffre de marché.** Si tu testes avec des données
   synthétiques, dis-le explicitement — un résultat obtenu sur une série inventée
   ne dit rien du vrai Bitcoin.
@@ -428,6 +511,10 @@ transactions par trois.
   §16 déroulée, 201 vérifications au vert. Les tâches GitHub (tests et robot)
   passent en même temps sur Node 24 : GitHub signalait Node 20 en fin de vie à
   chaque exécution
+- **15 septembre 2026, suite** : MVRV Z-score et prix réalisé automatiques (Coin
+  Metrics, §5) ; backtest POSITION et backtest SWING 4 heures (§10, résultats §14) ;
+  étapes 2 et 3 de la chaîne partagées par le cockpit et les backtests (`tierRules`,
+  §9) ; sauvegarde et restauration des saisies (§6) ; onglet Backtest réparé
 
 ---
 
@@ -497,21 +584,135 @@ règle de régime » du `backtest.html` a été redéfinie pour rejouer les règ
 actuelles : sans ça, le backtest aurait continué à mesurer une grille que le
 cockpit n'applique plus.
 
+### Backtest SWING 4 heures (15 septembre 2026)
+
+Score swing **complet**, exactement comme le cockpit (4 H + 1 J), sur les vraies
+bougies Binance. Périodes : du 20/06/2018 au 07/09/2021, puis cinq ans jusqu'au
+07/09/2026. Frais 0,1 %, carence 7 jours, départ 70 % BTC, décision à chaque
+clôture 4 H.
+
+| Variante | 2018-2021 | 2021-2026 |
+|---|---|---|
+| Règles actuelles (sans vente swing) | +623,7 % · pire perte −63 % | +77,7 % · −74 % |
+| Grille d'origine | +149,6 % · −48 % | +47,8 % · −56 % |
+| Ne rien faire (70/30) | +414,2 % · −52 % | +49,6 % · −59 % |
+| Ne rien faire (100 % BTC) | +593,1 % | +71,8 % |
+
+Rendement moyen des 15 jours suivants :
+
+| Période | Après un score de vente | Après un score d'achat | Toutes les bougies |
+|---|---|---|---|
+| 2018-2021 | +7,41 % | +1,80 % | +3,92 % |
+| 2021-2026 | +2,83 % | +0,45 % | +1,03 % |
+
+**Lecture :** le retrait des ventes swing (§9, étape 2) **vaut aussi en 4 heures**.
+Un score de vente y a précédé des rendements deux à trois fois supérieurs à la
+moyenne, sur les deux périodes, et la grille d'origine perd face au simple fait de
+conserver. Le côté achat n'a **pas de valeur de timing** : un score d'achat a précédé
+des rendements inférieurs à la moyenne. L'avance des règles actuelles sur le 70/30
+vient surtout de l'exposition — elles finissent quasiment à 100 % BTC —, comme en
+journalier : face à 100 % BTC conservé, l'écart n'est plus que de +31 et +6 points.
+Carence 30 jours : même conclusion (+595,7 % et +89,1 % pour les règles actuelles,
++238,3 % et +41,3 % pour la grille d'origine).
+
+**Contrôle de cohérence** : le backtest journalier rejoué avec l'ancien moteur et
+avec le nouveau (qui appelle `tierRules`) donne des résultats **identiques** sur les
+deux périodes. L'écart de définition de la tendance baissière (§9) n'avait donc
+aucun effet réel.
+
+### Backtest POSITION (15 septembre 2026)
+
+Premier test de l'horizon POSITION, rendu possible par l'historique Coin Metrics.
+Score POSITION complet (RSI 1 J + 1 S, structure EMA 50/200, MVRV Z-score causal),
+règle de régime sur l'hebdomadaire, **sans le gate**. Frais 0,1 %, départ 70 % BTC.
+Périodes coupées **aux halvings** — des dates connues d'avance, pas choisies après
+coup. Aucun seuil n'a été modifié.
+
+Performance, carence 30 jours (pire perte entre parenthèses) :
+
+| Cycle | Règles actuelles | Sans exception MVRV | Sans aucune vente | Grille brute | Conserver 70/30 | 100 % BTC |
+|---|---|---|---|---|---|---|
+| 2012-2016 | +3474 % (−76 %) | +3366 % | +3616 % (−84 %) | +2828 % | +3563 % (−84 %) | +5090 % |
+| 2016-2020 | +1270 % (−70 %) | +1270 % | +1109 % (−83 %) | +989 % | +958 % (−83 %) | +1369 % |
+| 2020-2024 | +568 % (−65 %) | +503 % | +491 % (−76 %) | +549 % | +447 % (−73 %) | +639 % |
+| 2024-2026 (en cours) | +14,7 % (−48 %) | +14,7 % | +13,9 % (−50 %) | +17,7 % | +12,8 % (−43 %) | +18,3 % |
+
+Écart des règles actuelles, en points, selon la carence (7 / 30 / 60 jours) :
+
+| Cycle | vs sans aucune vente | vs sans exception MVRV | vs grille brute |
+|---|---|---|---|
+| 2012-2016 | +216 / −142 / −831 | +514 / +108 / −590 | +2184 / +646 / +305 |
+| 2016-2020 | +20 / +161 / +324 | 0 / 0 / 0 (jamais déclenchée) | +783 / +280 / +305 |
+| 2020-2024 | +9 / +77 / +120 | +49 / +65 / +79 | +53 / +19 / +40 |
+| 2024-2026 | +1 / +1 / +1 | 0 / 0 / 0 | −2 / −3 / 0 |
+
+Rendement moyen des 90 jours suivants :
+
+| Cycle | Vente, score brut | Vente retenue par les règles | Achat | Tous les jours |
+|---|---|---|---|---|
+| 2012-2016 | +129,4 % | −21,3 % | +10,2 % | +76,2 % |
+| 2016-2020 | +54,7 % | +10,6 % | +8,7 % | +33,5 % |
+| 2020-2024 | +60,9 % | +127,1 % | +9,9 % | +22,7 % |
+| 2024-2026 | −1,0 % | +3,6 % | +6,3 % | +3,3 % |
+
+Par bande de MVRV Z-score (Coin Metrics, causal), rendement moyen à 90 / 180 jours :
+
+| Bande | 2011-2018 | 2018-2026 |
+|---|---|---|
+| < 0 | +25 % / +49 % | +36 % / +92 % |
+| 0 à 2 | +60 % / +166 % | +13 % / +35 % |
+| 2 à 4 | +136 % / +224 % | +7 % / +2 % |
+| 4 à 7 | +63 % / +123 % | −1 % / −8 % |
+| > 7 | −38 % / −39 % (40 jours) | −31 % / −17 % (2 jours) |
+| tous les jours | +63 % / +145 % | +13 % / +32 % |
+
+**Lecture — POSITION ne se comporte pas comme SWING :**
+- **Le score brut n'est pas un signal de vente** : sur les trois cycles complets, un
+  score ≥ 7 a précédé des rendements supérieurs à la moyenne. Seul, il vendrait trop
+  tôt, comme en swing.
+- **La règle de régime fait le travail** : les règles actuelles battent la grille
+  brute sur les trois cycles complets, à toutes les carences (de +19 à +2184 points).
+  En swing, cette règle ne jouait presque jamais ; sur l'hebdomadaire, elle filtre.
+- **Les ventes retenues ont eu de la valeur deux cycles sur trois** (2013,
+  2017-2018) et se sont trompées en 2020-2024 (ventes avant la suite de la hausse).
+- **Garder les ventes POSITION** bat « sans aucune vente » dans 10 cas sur 12, avec
+  une pire perte nettement moins profonde sur les trois cycles complets. Les deux
+  exceptions sont 2012-2016 à 30 et 60 jours, et elles sont lourdes.
+- **L'exception MVRV** n'a joué qu'en 2012-2016 et 2020-2024 ; elle a aidé 5 fois sur
+  6. Mais les sommets de MVRV rétrécissent (§11) : elle pourrait ne plus jamais se
+  déclencher.
+- **La valorisation a une valeur prédictive**, contrairement au momentum : les bandes
+  4 à 7 et au-delà de 7 ont été suivies de rendements inférieurs à la moyenne dans
+  les deux moitiés de l'historique ; la bande 2 à 4 seulement depuis 2018.
+- Face à **100 % BTC conservé**, les variantes font presque toujours moins bien sur
+  les cycles complets (seule exception : 2016-2020 à 60 jours, +1389 % contre
+  +1369 %). L'outil **réduit surtout les pertes**, il ajoute peu de performance.
+
+**Décision du 15 septembre 2026 : aucune règle POSITION n'est modifiée.** Rien dans
+ces chiffres ne justifie de retirer les ventes POSITION, comme on l'a fait en swing,
+ni de retoucher un seuil : quatre cycles, dont un en cours, c'est trop peu pour
+calibrer sans ajuster le passé. Ce qui reste ouvert : la dérive des sommets de MVRV.
+
+**Ce que ça ne dit pas :** rien sur le gate des 7 signaux ; divergences hebdomadaires
+lues sur les clôtures, pas sur les mèches ; fenêtres de rendement qui se chevauchent
+(un sens, pas une significativité) ; 2010-2012 trop peu liquide pour conclure.
+
+Pour rejouer ces chiffres : onglet Backtest, horizon POSITION, en tronquant
+l'historique aux dates des halvings (28/11/2012, 09/07/2016, 11/05/2020, 20/04/2024).
+
 **Prochaines étapes possibles, par ordre de valeur :**
 1. **Alertes**, en deux volets choisis le 11 septembre 2026 :
    - **A — fait** : bilan « depuis ta dernière visite » en tête du cockpit (§6).
-     Toutes les données, MVRV et invalidations compris, mais il faut ouvrir la page.
    - **B — construit le 11 septembre 2026** (§15) : robot quotidien sur GitHub
-     Actions, notification iPhone via ntfy. Essai préalable concluant : les
-     bougies passent par `data-api.binance.vision`, les dérivés restent bloqués.
-     Il ne peut jamais annoncer une vente POSITION.
-2. **Backtest 4H** pour tester le score swing complet (aujourd'hui rejoué en
-   journalier seulement). Coût : environ 11 requêtes de pagination par période.
-   C'est aussi le seul moyen de savoir si le retrait des ventes (§9, étape 2) vaut
-   aussi en 4H ou seulement en journalier.
-3. **Backtest de l'horizon POSITION** si une source d'historique MVRV gratuite est
-   trouvée. Tant qu'elle manque, POSITION reste la seule moitié non validée du
-   système — et c'est désormais la seule qui peut déclencher une vente.
+     Actions, notification iPhone via ntfy. Canal pas encore configuré.
+2. ~~Backtest 4H~~ — **fait le 15 septembre 2026**, ci-dessus.
+3. ~~Backtest POSITION~~ — **fait le 15 septembre 2026**, ci-dessus.
+4. **Calibration du MVRV face au rétrécissement des sommets** : bandes relatives (rang
+   percentile du Z-score sur plusieurs années, par exemple) plutôt qu'absolues. À
+   tester avec une période de validation distincte, jamais en ajustant sur les
+   quatre cycles connus.
+5. **Robot d'alerte et MVRV** : le robot pourrait lire Coin Metrics et signaler un
+   changement de bande MVRV, qui ne dépend d'aucune donnée personnelle.
 
 ---
 
@@ -624,8 +825,8 @@ Leçons de ce passage :
    e-mail réelle**, le dépôt est public :
    `git config user.name "Ataqc"` et
    `git config user.email "Ataqc@users.noreply.github.com"`.
-4. **Dépendances de test** : `npm ci`, puis `npm test`. Attendu : moteur 116,
-   robot 17, page 68 — **201 vérifications, 0 échec**. Un échec ici veut dire que
+4. **Dépendances de test** : `npm ci`, puis `npm test`. Attendu : moteur 174,
+   robot 17, page 88 — **279 vérifications, 0 échec**. Un échec ici veut dire que
    l'environnement diffère : le diagnostiquer avant toute modification.
 5. **Connexion GitHub** : `gh auth status`. Si l'utilisateur n'est pas connecté,
    lui demander de faire lui-même `gh auth login` (navigateur, compte `Ataqc`) —

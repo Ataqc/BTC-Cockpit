@@ -1,4 +1,6 @@
 node_modules/
+# sauvegardes exportées depuis la page : elles contiennent la position
+btc-cockpit-sauvegarde*.json
 .bak.html
 tmp_*.js
 .claude/launch.json

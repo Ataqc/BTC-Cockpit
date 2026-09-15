@@ -288,6 +288,51 @@ attendre().then(function(){
   ok(erreurs.length === 0, "toujours aucune erreur JavaScript après navigation et backtest" +
      (erreurs.length ? " (" + erreurs[0] + ")" : ""));
 
+  /* ---------- structure de l'onglet Backtest ---------- */
+  ok(doc.getElementById("vBacktest").contains(doc.getElementById("btRun")) &&
+     !doc.getElementById("vCockpit").contains(doc.getElementById("btRun")) &&
+     doc.getElementById("vBacktest").contains(doc.getElementById("btOut")),
+     "les réglages et les résultats du backtest sont dans l'onglet Backtest, et nulle part ailleurs");
+
+  /* ---------- Coin Metrics injoignable (réseau simulé sans lui) ---------- */
+  aller("#cockpit");
+  ok(/Coin Metrics/.test(htm("sources")) && /échec/.test(htm("sources")),
+     "Coin Metrics injoignable : la ligne de source le dit en rouge");
+  ok(/injoignable/.test(htm("cmBox")) && /injoignable/.test(win.D.verdict.position.parts[2].raw),
+     "Coin Metrics injoignable : la carte et le score disent que le MVRV passe sur la saisie de secours");
+
+  /* ---------- sauvegarde des saisies ---------- */
+  function clic(id){ doc.getElementById(id).dispatchEvent(new win.Event("click", { bubbles:true })); }
+  function remplir(id, v){
+    var el = doc.getElementById(id); el.value = v;
+    el.dispatchEvent(new win.Event("input", { bubbles:true }));
+  }
+  remplir("fPos", "42");
+  clic("xExport");
+  var exporte = doc.getElementById("xText").value;
+  ok(!doc.getElementById("xPasteBox").hidden && /"app": "btc-cockpit"/.test(exporte) && /"fPos": "42"/.test(exporte),
+     "export : quand le navigateur ne peut pas créer de fichier, le texte de la sauvegarde est affiché à copier");
+  remplir("fPos", "7");
+  doc.getElementById("xText").value = "n'importe quoi";
+  clic("xCheck");
+  ok(/Import refusé/.test(htm("xMsg")) && doc.getElementById("fPos").value === "7",
+     "texte qui n'est pas une sauvegarde : import refusé, rien n'est modifié");
+  doc.getElementById("xText").value = exporte;
+  clic("xCheck");
+  ok(!!doc.getElementById("xConfirm") && doc.getElementById("fPos").value === "7",
+     "sauvegarde valable : son contenu est annoncé, et rien n'est remplacé avant la confirmation");
+  var analysesAvant = win.histLoad().length;
+  clic("xConfirm");
+  ok(doc.getElementById("fPos").value === "42" && win.localStorage.getItem("btc_fPos") === "42" &&
+     /Import terminé/.test(htm("xMsg")),
+     "après confirmation : champs restaurés et enregistrés sur l'appareil");
+  ok(win.histLoad().length === analysesAvant,
+     "réimporter sa propre sauvegarde ne duplique aucune analyse de l'historique");
+  ok(erreurs.length === 0, "toujours aucune erreur JavaScript après export et import" +
+     (erreurs.length ? " (" + erreurs[0] + ")" : ""));
+
+  return pageAvecCoinMetrics();
+}).then(function(){
   /* ---------- résultat ---------- */
   console.log("");
   console.log("Tests de la page : " + pass + " réussis, " + fail.length + " échoués");
@@ -303,3 +348,91 @@ attendre().then(function(){
   console.log("ÉCHEC BRUTAL du test de page : " + (e && e.stack || e));
   process.exit(1);
 });
+
+/* ---------- seconde page : Coin Metrics répond ----------
+   Série SYNTHÉTIQUE au format exact de l'API Coin Metrics. Elle vérifie que le MVRV
+   entre tout seul dans le score, et que les backtests POSITION et 4 heures tournent. */
+function coinMetrics(){
+  var rows = [], px = 1000, rc = 900, n = 1600;
+  var hier = new Date(), j0 = Date.UTC(hier.getUTCFullYear(), hier.getUTCMonth(), hier.getUTCDate()) - n*JOUR;
+  for(var i=0;i<n;i++){
+    px = px * (1 + Math.sin(i/60)*0.01 + 0.001);
+    rc = rc*0.996 + px*0.004;
+    rows.push({ asset:"btc", time:new Date(j0 + i*JOUR).toISOString(), PriceUSD:String(px),
+                CapMrktCurUSD:String(px*19e6), CapMVRVCur:String(px/rc), SplyCur:"19000000" });
+  }
+  return { data:rows };
+}
+function pageAvecCoinMetrics(){
+  var err2 = [];
+  var dom2 = new jsdom.JSDOM(html, {
+    runScripts: "dangerously",
+    url: "https://example.org/",
+    beforeParse: function(w){
+      w.fetch = function(url){
+        try {
+          var body = /coinmetrics/.test(String(url)) ? coinMetrics() : reponse(String(url));
+          return Promise.resolve({ ok:true, status:200, json:function(){ return Promise.resolve(body); } });
+        } catch(e){ return Promise.reject(e); }
+      };
+      w.scrollTo = function(){};
+      w.addEventListener("error", function(ev){ err2.push(String(ev.message || ev.error)); });
+    }
+  });
+  var w2 = dom2.window, d2 = w2.document;
+  function h2(id){ var el = d2.getElementById(id); return el ? (el.innerHTML || "") : ""; }
+  function clic2(id){ d2.getElementById(id).dispatchEvent(new w2.Event("click", { bubbles:true })); }
+  function quand(cond, msg){
+    var limite = Date.now() + 30000;
+    return new Promise(function(resolve, reject){
+      (function boucle(){
+        if(cond()) return resolve();
+        if(Date.now() > limite) return reject(new Error(msg + (err2.length ? " — erreur : " + err2[0] : "")));
+        setTimeout(boucle, 50);
+      })();
+    });
+  }
+  return quand(function(){ return w2.D && w2.D.verdict && w2.D.verdict.ok && w2.D.cm; },
+               "la page avec Coin Metrics n'a produit aucun verdict").then(function(){
+    var V = w2.D.verdict;
+    ok(V.mvrv.src === "cm" && V.position.W === 100 && V.position.dropped.length === 0,
+       "Coin Metrics disponible : le MVRV entre tout seul dans le score position, sur 100 % du barème");
+    ok(/Coin Metrics/.test(V.position.parts[2].raw) && /MVRV Z-score/.test(h2("cmBox")) && /OK/.test(h2("sources")),
+       "l'interface dit d'où vient le MVRV et de quelle date");
+    var bloc = d2.getElementById("block").value;
+    ok(/--- ON-CHAIN \(Coin Metrics/.test(bloc) && /Prix réalisé : [0-9][0-9\s  ]* \$/.test(bloc) &&
+       bloc.indexOf("NaN") < 0 && bloc.indexOf("undefined") < 0,
+       "le bloc transmet à l'IA le MVRV et le prix réalisé calculés, avec leur source");
+    ok(w2.localStorage.getItem("btc_cm") !== null, "la valeur du jour est gardée sur l'appareil : un seul téléchargement par jour");
+
+    d2.getElementById("tabBacktest").dispatchEvent(new w2.MouseEvent("click", { bubbles:true, cancelable:true }));
+    d2.getElementById("btHorizon").value = "position";
+    d2.getElementById("btHorizon").dispatchEvent(new w2.Event("change", { bubbles:true }));
+    ok(/POSITION/.test(h2("btScope")) && /Coin Metrics/.test(h2("btScope")),
+       "choisir l'horizon POSITION change l'explication de ce qui est testé");
+    d2.getElementById("btYears").value = "max";
+    clic2("btRun");
+    return quand(function(){ return /Résultat/.test(h2("btOut")); }, "le backtest POSITION n'a produit aucun résultat");
+  }).then(function(){
+    var out = d2.getElementById("btOut");
+    ok(out.querySelectorAll(".hero").length === 5 && /POSITION/.test(h2("btOut")),
+       "backtest POSITION : quatre variantes et la référence « ne rien faire »");
+    ok(h2("btOut").indexOf("NaN") < 0 && h2("btOut").indexOf("undefined") < 0,
+       "ni « NaN » ni « undefined » dans le backtest POSITION");
+    out.innerHTML = "";
+    d2.getElementById("btHorizon").value = "swing-4h";
+    d2.getElementById("btYears").value = "2";
+    clic2("btRun");
+    return quand(function(){ return /Résultat/.test(h2("btOut")); }, "le backtest 4 heures n'a produit aucun résultat");
+  }).then(function(){
+    var out = d2.getElementById("btOut"), cartes = out.querySelectorAll(".card");
+    var derniere = cartes[cartes.length-1];
+    ok(out.querySelectorAll(".hero").length === 3 && /4 heures/.test(h2("btOut")),
+       "backtest SWING 4 heures : règles actuelles, grille d'origine, ne rien faire");
+    ok([].every.call(derniere.querySelectorAll(".tag"), function(t){ return t.textContent !== "vente"; }),
+       "backtest SWING 4 heures : aucune vente dans les transactions des règles actuelles");
+    ok(h2("btOut").indexOf("NaN") < 0 && h2("btOut").indexOf("undefined") < 0,
+       "ni « NaN » ni « undefined » dans le backtest 4 heures");
+    ok(err2.length === 0, "aucune erreur JavaScript dans la page avec Coin Metrics" + (err2.length ? " (" + err2[0] + ")" : ""));
+  });
+}

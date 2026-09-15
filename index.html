@@ -13,7 +13,7 @@
   --org:#b45309; --orgbg:#fdf1e0;
   --neu:#4b5563; --neubg:#eceef1;
   --acc:#1a56db;
-  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --axis:#c3c2b7;
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#8b5cf6; --s5:#c2417a; --axis:#c3c2b7;
   --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
 }
 @media (prefers-color-scheme:dark){
@@ -25,7 +25,7 @@
     --org:#e3a008; --orgbg:#2a1f08;
     --neu:#9aa5b1; --neubg:#1f252e;
     --acc:#58a6ff;
-    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --axis:#4a525e;
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#a78bfa; --s5:#e0609a; --axis:#4a525e;
   }
 }
 *{box-sizing:border-box}
@@ -101,6 +101,7 @@ textarea{width:100%;height:340px;padding:14px;border-radius:10px;border:1px soli
 .rsibar{height:6px;border-radius:3px;background:var(--panel2);position:relative;margin-top:5px;overflow:hidden}
 .rsibar i{position:absolute;top:0;bottom:0;left:0;border-radius:3px}
 footer{text-align:center;color:var(--tx3);font-size:12px;margin-top:30px;line-height:1.8}
+footer a{color:var(--acc);text-decoration:none}
 
 /* Verdict */
 .vgrid{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(400px,1fr))}
@@ -322,16 +323,17 @@ td.n .seg{white-space:nowrap}
   </div>
 
   <div class="card">
-    <h2>Métriques lentes — saisie manuelle</h2>
-    <div class="note">Ces chiffres ne sont pas disponibles gratuitement en automatique. Ils bougent en semaines, pas en heures : les relever une fois par semaine suffit. Laisse vide si tu n'as pas la donnée — elle passera en « N/D ».</div>
+    <h2>Métriques lentes</h2>
+    <div id="cmBox"><div class="hint">Coin Metrics : chargement…</div></div>
+    <div class="note">Le <b>MVRV</b> et le <b>prix réalisé</b> arrivent tout seuls de Coin Metrics, recalculés chaque jour. Les flux ETF, les réserves et le premium n'ont pas de source gratuite en automatique : ils bougent en semaines, pas en heures, les relever une fois par semaine suffit. Laisse vide si tu n'as pas la donnée — elle passera en « N/D ».</div>
     <div class="fields" style="margin-top:14px">
       <div>
-        <label>MVRV Z-score</label>
+        <label>MVRV Z-score — secours</label>
         <input type="text" id="mMvrv" placeholder="ex : 2,4">
         <div class="sub"><a href="https://charts.bitbo.io/mvrv-z-score/" target="_blank" rel="noopener">bitbo.io</a> · <a href="https://www.lookintobitcoin.com/charts/mvrv-zscore/" target="_blank" rel="noopener">lookintobitcoin</a></div>
       </div>
       <div>
-        <label>Prix réalisé ($)</label>
+        <label>Prix réalisé ($) — secours</label>
         <input type="text" id="mReal" placeholder="ex : 52000">
         <div class="sub"><a href="https://www.lookintobitcoin.com/charts/realized-price/" target="_blank" rel="noopener">lookintobitcoin</a></div>
       </div>
@@ -362,7 +364,7 @@ td.n .seg{white-space:nowrap}
       </div>
     </div>
     <div id="mAgeBox" style="margin-top:14px"></div>
-    <div class="hint">Au-delà de 10 jours, ces chiffres ne sont plus utilisés : ils repassent en N/D, le score position est recalculé sans le MVRV (sur 60 % du barème) et le signal flux/on-chain devient neutre. Une donnée vieille de trois semaines n'est pas une donnée, c'est une valeur par défaut qui agit en silence.</div>
+    <div class="hint">Au-delà de 10 jours, ces chiffres ne sont plus utilisés : ils repassent en N/D et le signal flux/on-chain devient neutre. Le MVRV de secours aussi : si Coin Metrics est injoignable, le score position est alors recalculé sans lui, sur 60 % du barème. Une donnée vieille de trois semaines n'est pas une donnée, c'est une valeur par défaut qui agit en silence.</div>
   </div>
 
   <div class="card">
@@ -392,6 +394,23 @@ td.n .seg{white-space:nowrap}
   </div>
 
   <div class="card">
+    <h2>Sauvegarde de tes saisies</h2>
+    <div class="note">Tes saisies ne vivent que dans ce navigateur : position, PRU, cash, relevés manuels et historique de tes analyses. Exporte-les dans un fichier pour les retrouver sur un autre appareil, dans un autre navigateur ou après un changement d'ordinateur. <b>Ce fichier contient ta position : garde-le pour toi, et ne le dépose jamais dans le dépôt GitHub, qui est public.</b></div>
+    <div class="bar" style="margin-top:14px">
+      <button class="primary" id="xExport">Exporter dans un fichier</button>
+      <button id="xImportBtn">Importer un fichier</button>
+      <button id="xPaste">Coller un texte</button>
+      <input type="file" id="xFile" accept=".json,application/json" hidden>
+    </div>
+    <div id="xPasteBox" hidden>
+      <textarea id="xText" style="height:140px" placeholder="Colle ici le contenu d'un fichier de sauvegarde du cockpit"></textarea>
+      <div class="bar" style="margin-top:10px"><button id="xCheck">Vérifier ce texte</button></div>
+    </div>
+    <div id="xMsg"></div>
+    <div class="hint">Rien n'est remplacé sans ta confirmation : l'import affiche d'abord ce que contient le fichier. La référence du bilan « depuis ta dernière visite » n'est pas exportée, elle est propre à chaque appareil ; le MVRV automatique non plus, il se recharge tout seul.</div>
+  </div>
+
+  <div class="card">
     <h2>Bloc de données pour l'analyse</h2>
     <div class="bar">
       <button class="primary" id="copy">Copier le bloc</button>
@@ -405,22 +424,27 @@ td.n .seg{white-space:nowrap}
 </div><!-- /vCockpit -->
 
 <div id="vBacktest" hidden>
-  <div class="banner"><b>Backtest de ta grille.</b> Rejoue ton score et les règles actuelles du cockpit sur l'historique réel de Binance, et les compare à la grille d'origine et au fait de ne rien faire. Les données ne sont téléchargées que quand tu lances le calcul.</div>
-  <h1>₿ Backtest de ta grille</h1>
-  <div class="sub">Rejoue ton score et les règles actuelles du cockpit sur l'historique réel de Binance, et les compare à la grille d'origine et au fait de ne rien faire.</div>
-</div></header>
-
-<div class="wrap">
+  <div class="banner"><b>Backtest de ta grille.</b> Rejoue ton score et les règles actuelles du cockpit sur l'historique réel, et les compare à des variantes et au fait de ne rien faire. Les données ne sont téléchargées que quand tu lances le calcul.</div>
 
   <div class="card">
     <h2>Paramètres</h2>
     <div class="fields">
+      <div>
+        <label>Horizon testé</label>
+        <select id="btHorizon">
+          <option value="swing-1d" selected>SWING — bougies journalières</option>
+          <option value="swing-4h">SWING — 4 heures et journalier</option>
+          <option value="position">POSITION — journalier, hebdo et MVRV</option>
+        </select>
+      </div>
       <div>
         <label>Période testée</label>
         <select id="btYears">
           <option value="2">2 ans</option>
           <option value="3" selected>3 ans</option>
           <option value="5">5 ans</option>
+          <option value="8">8 ans</option>
+          <option value="max">Tout l'historique disponible</option>
         </select>
       </div>
       <div>
@@ -446,6 +470,7 @@ td.n .seg{white-space:nowrap}
           <option value="7" selected>7 jours entre deux actions</option>
           <option value="14">14 jours</option>
           <option value="30">30 jours</option>
+          <option value="60">60 jours</option>
         </select>
       </div>
     </div>
@@ -458,26 +483,17 @@ td.n .seg{white-space:nowrap}
 
   <div class="card">
     <h2>Ce que ce backtest teste — et ce qu'il ne teste pas</h2>
-    <div class="note warn">
-      <b>Comparaison :</b> les <b>règles actuelles du cockpit</b> (aucune vente sur signal technique swing, achat réduit d'un cran en tendance baissière) contre la <b>grille d'origine</b> qui vendait sur score élevé, et contre le fait de ne rien faire.<br>
-      <b>Pourquoi les ventes swing ont été retirées :</b> ce backtest, lancé le 8 septembre 2026 sur 8 ans de bougies réelles coupées en deux périodes, a montré qu'un score de vente était suivi de rendements <b>supérieurs</b> à la moyenne du marché — sur les deux périodes. Le score mesure du momentum, pas un essoufflement. Le tableau « valeur prédictive » plus bas te le montre à chaque exécution.<br>
-      <b>Testé :</b> le score technique (RSI, MACD, structure) et la table score → action.<br>
-      <b>Non testé :</b> le gate des 7 signaux de confirmation. L'historique du funding, de l'open interest et des liquidations n'est pas disponible gratuitement au-delà de quelques semaines. Le gate ne peut donc pas être rejoué.<br>
-      <b>Non testé non plus :</b> l'horizon POSITION. Il dépend à 40 % du MVRV, qui n'a pas d'historique gratuit — le rejouer sans lui donnerait un résultat trompeur.<br>
-      <b>Conclusion :</b> ce backtest juge <b>l'horizon SWING</b>, calculé sur bougies journalières.
-    </div>
+    <div id="btScope"></div>
     <div class="hint">
-      Les décisions sont prises à la clôture du jour et exécutées à l'ouverture du lendemain — jamais au cours qui a servi à décider. C'est ce qui évite de tricher avec le futur.
+      Les décisions sont prises à la clôture et exécutées au cours suivant — jamais au cours qui a servi à décider. C'est ce qui évite de tricher avec le futur.
     </div>
   </div>
-
-  
 
   <div id="btOut"></div>
 </div><!-- /vBacktest -->
 
   <footer>
-    Données : Binance (technique &amp; dérivés) · Alternative.me (sentiment) · saisie manuelle (on-chain)<br>
+    Données : Binance (technique &amp; dérivés) · Alternative.me (sentiment) · <a href="https://coinmetrics.io/community-network-data/" target="_blank" rel="noopener">Coin Metrics</a> (MVRV, prix réalisé, historique — licence CC BY-NC 4.0) · saisie manuelle (flux)<br>
     Aucune donnée ne quitte cette machine. Aucun compte, aucune clé, aucun frais.
   </footer>
 </div>
@@ -680,6 +696,18 @@ function todayFr(){
   var d = new Date();
   return pad(d.getDate())+"/"+pad(d.getMonth()+1)+"/"+d.getFullYear();
 }
+/* Date d'une donnée quotidienne, lue en UTC : c'est l'heure des clôtures. */
+function dateFrUTC(t){
+  var d = new Date(t);
+  return pad(d.getUTCDate())+"/"+pad(d.getUTCMonth()+1)+"/"+d.getUTCFullYear();
+}
+/* Tout texte saisi ou importé qui finit dans la page passe par ici : un champ ne
+   doit jamais pouvoir injecter du code dans la page. */
+function esc(s){
+  return String(s===null||s===undefined ? "" : s).replace(/[&<>"']/g, function(c){
+    return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c];
+  });
+}
 
 /* Rang percentile de v dans arr → 0..1. Auto-calibrant : pas de constante arbitraire. */
 function pctRank(arr,v){
@@ -826,6 +854,103 @@ function mvrvScore(z){
   return null;
 }
 
+/* ---------- MVRV Z-score automatique (Coin Metrics) ----------
+   Z = (capitalisation de marché − capitalisation réalisée) ÷ écart-type de la
+   capitalisation de marché. Capitalisation réalisée = marché ÷ ratio MVRV.
+   L'écart-type ne porte que sur les jours CONNUS à chaque date (écart-type de
+   population depuis le premier jour de la série) : c'est la méthode de
+   lookintobitcoin, vérifiée le 15/09/2026 — écart moyen de 0,006 point depuis 2014,
+   même bande MVRV 99,8 % du temps. C'est aussi ce qui permet de s'en servir dans un
+   backtest sans lire l'avenir. Un jour sans donnée n'entre pas dans le calcul. */
+function mvrvZSeries(mc, mvrv){
+  var out = [], s = 0, s2 = 0, k = 0;
+  for(var i=0;i<mc.length;i++){
+    var m = mc[i], r = mvrv[i];
+    if(!(m > 0)){ out[i] = null; continue; }
+    s += m; s2 += m*m; k++;
+    var mu = s/k, sd = Math.sqrt(Math.max(s2/k - mu*mu, 0));
+    out[i] = (k < 2 || !(sd > 0) || !(r > 0)) ? null : (m - m/r) / sd;
+  }
+  return out;
+}
+
+var CM_API = "https://community-api.coinmetrics.io/v4/timeseries/asset-metrics";
+var CM_MAX_AGE = 4;   /* jours. Coin Metrics publie chaque jour la journée de la veille. */
+var CM_KEY = "btc_cm";
+/* Historique quotidien complet depuis 2010, page par page. Gratuit, sans clé ;
+   licence CC BY-NC 4.0, qui demande de citer la source : c'est fait en bas de page. */
+function cmFetch(metrics){
+  var rows = [], pages = 0;
+  function page(url){
+    return withTimeout(url, 45000).then(function(j){
+      if(!j || !j.data) throw new Error("réponse Coin Metrics illisible");
+      rows = rows.concat(j.data); pages++;
+      if(j.next_page_url && pages < 20) return page(j.next_page_url);
+      return rows;
+    });
+  }
+  return page(CM_API+"?assets=btc&frequency=1d&metrics="+metrics+
+              "&start_time=2010-01-01&paging_from=start&page_size=10000");
+}
+/* Lignes Coin Metrics → séries alignées. Une valeur absente vaut NaN, jamais 0. */
+function cmSeries(rows){
+  var S = {t:[], px:[], mc:[], mv:[], sply:[]};
+  function f(x){ var v = parseFloat(x); return isFinite(v) ? v : NaN; }
+  rows.forEach(function(r){
+    var t = Date.parse(r.time);
+    if(!isFinite(t)) return;
+    S.t.push(t); S.px.push(f(r.PriceUSD)); S.mc.push(f(r.CapMrktCurUSD));
+    S.mv.push(f(r.CapMVRVCur)); S.sply.push(f(r.SplyCur));
+  });
+  return S;
+}
+/* Dernière valeur exploitable de la série */
+function cmLatest(S){
+  var z = mvrvZSeries(S.mc, S.mv);
+  for(var i=z.length-1;i>=0;i--){
+    if(z[i] === null) continue;
+    var rc = S.mc[i]/S.mv[i];
+    return { v:1, t:S.t[i], z:z[i], mvrv:S.mv[i], rc:rc, real: S.sply[i] > 0 ? rc/S.sply[i] : null };
+  }
+  return null;
+}
+function cmFresh(c, now){
+  return !!(c && !c.err && typeof c.z === "number" && isFinite(c.z) &&
+            (now - c.t)/86400000 <= CM_MAX_AGE);
+}
+/* Un seul téléchargement par jour et par appareil : si la donnée gardée est déjà
+   celle d'hier, Coin Metrics n'a rien de plus récent à donner. */
+function cmLoad(){
+  var n = new Date(), hier = Date.UTC(n.getUTCFullYear(), n.getUTCMonth(), n.getUTCDate()) - 86400000;
+  try{
+    var c = JSON.parse(localStorage.getItem(CM_KEY));
+    if(c && c.v === 1 && c.t >= hier && cmFresh(c, n.getTime())){ c.cache = true; return Promise.resolve(c); }
+  }catch(e){}
+  return cmFetch("CapMVRVCur,CapMrktCurUSD,SplyCur").then(function(rows){
+    var L = cmLatest(cmSeries(rows));
+    if(!L) throw new Error("aucune valeur MVRV exploitable");
+    try{ localStorage.setItem(CM_KEY, JSON.stringify(L)); }catch(e){}
+    return L;
+  });
+}
+/* MVRV retenu pour le score : Coin Metrics s'il est frais, sinon la saisie manuelle
+   si elle est fraîche, sinon N/D. Toujours dit en clair. */
+function mvrvSource(now){
+  if(cmFresh(D.cm, now))
+    return { z:D.cm.z, src:"cm",
+             raw:"Z = "+num(D.cm.z,2)+" · Coin Metrics, calcul automatique · donnée du "+dateFrUTC(D.cm.t) };
+  var z = parseNum($("mMvrv").value), a = manualAge(), st = manualStale(), raw;
+  if(z===null)      raw = "N/D — champ manuel vide";
+  else if(a===null) raw = "PÉRIMÉ — date de relevé absente ou illisible · exclu du score";
+  else if(st)       raw = "PÉRIMÉ — relevé vieux de "+num(a,0)+" jours (limite "+
+                          MANUAL_MAX_AGE+") · exclu du score";
+  else              raw = "Z = "+num(z,2)+" · saisie manuelle du "+esc($("mDate").value)+
+                          " ("+num(a,0)+" j)";
+  if(D.cm) raw = (D.cm.err ? "Coin Metrics injoignable" : "donnée Coin Metrics trop ancienne")+
+                 " · secours manuel : "+raw;
+  return { z: st ? null : z, src: (z!==null && !st) ? "manuel" : null, raw: raw };
+}
+
 /* Agrégation de deux unités de temps. Au-delà de 3 points d'écart :
    pas de moyenne silencieuse — on retient la plus lente et on le signale. */
 function agg(list){
@@ -863,6 +988,34 @@ var TIERS = [
 function tierFor(s){ for(var i=0;i<TIERS.length;i++) if(s >= TIERS[i].min) return i; return TIERS.length-1; }
 function softer(i){ return i<=1 ? i+1 : (i>=4 ? i-1 : i); }
 function holdIdx(s){ return s>=5 ? 2 : 3; }
+
+/* Pondérations des deux scores. Définies une seule fois : le cockpit et les trois
+   backtests les lisent ici, aucun n'a sa propre copie. */
+var W_SWING = {rsi:50, macd:30, struct:20};
+var W_POS   = {rsi:35, struct:25, mvrv:40};
+
+/* Étapes 2 et 3 de la chaîne de décision : retrait des ventes en SWING, puis règle
+   de régime. Fonction pure, sans lecture de la page : le cockpit (decide) et les
+   backtests l'appellent tous, il n'en existe pas de seconde copie. Le gate des
+   7 signaux (étapes 4 et 5) n'est pas ici : il n'a pas d'historique gratuit.
+   down = structure de fond baissière (EMA 50 journalière sous l'EMA 200).
+   sansExceptionMvrv sert uniquement au backtest, pour mesurer ce que vaut l'exception.
+   Renvoie le palier retenu et la règle appliquée. stop = la chaîne s'arrête là. */
+function tierRules(score, horizon, regLabel, bearDiv, mvrvSub, down, sansExceptionMvrv){
+  var i = tierFor(score), dir = TIERS[i].dir;
+  if(dir === "hold") return {i:i, rule:null, stop:true};
+  if(horizon === "swing" && dir === "sell") return {i:holdIdx(score), rule:"swing-sell", stop:true};
+  if(regLabel === "TENDANCE"){
+    if(dir === "sell"){
+      var extreme = !sansExceptionMvrv && mvrvSub !== null && mvrvSub !== undefined &&
+                    !isNaN(mvrvSub) && mvrvSub >= 8.5;
+      if(!bearDiv && !extreme) return {i:holdIdx(score), rule:"trend-block", stop:true};
+      return {i:i, rule: bearDiv ? "trend-div" : "trend-mvrv", stop:false};
+    }
+    if(down) return {i:softer(i), rule:"trend-down-buy", stop:false};
+  }
+  return {i:i, rule:null, stop:false};
+}
 
 /* Les 7 signaux du gate — aucun n'entre dans le score technique : pas de double comptage.
    dir "sell" = plaide pour alléger · "buy" = plaide pour accumuler · null = neutre ou N/D */
@@ -977,49 +1130,40 @@ function decide(score, horizon, regime, div, opt){
     return out;
   }
 
-  /* RÈGLE ISSUE DU BACKTEST DU 8 SEPTEMBRE 2026 (§14 du briefing).
-     Sur 8 ans de bougies journalières réelles, coupées en deux périodes dont une
-     jamais utilisée pour le constat, un score de vente en SWING a été suivi de
-     rendements SUPÉRIEURS à la moyenne du marché. Le score technique swing mesure
-     du momentum, pas un essoufflement : il ne peut donc pas déclencher une vente.
-     L'horizon POSITION n'est pas concerné — il n'a pas été testé (pas d'historique
-     MVRV gratuit) et repose sur un ancrage de valorisation, pas sur du momentum. */
-  if(horizon === "swing" && dir === "sell"){
-    out.final = holdIdx(score); out.capped = true;
+  /* Étapes 2 et 3 : tierRules, la même fonction que les backtests.
+     RÈGLE ISSUE DU BACKTEST DU 8 SEPTEMBRE 2026 (§14 du briefing) : sur 8 ans de
+     bougies journalières réelles, coupées en deux périodes dont une jamais utilisée
+     pour le constat, un score de vente en SWING a été suivi de rendements SUPÉRIEURS
+     à la moyenne du marché. Le score swing mesure du momentum, pas un essoufflement.
+     RÈGLE DE RÉGIME — la plus importante du prompt — ensuite. */
+  var R = tierRules(score, horizon, regime.label, !!(div && div.bear), opt.mvrvSub,
+                    !!(D.ema && D.ema.e50 < D.ema.e200));
+  if(R.rule === "swing-sell"){
+    out.final = R.i; out.capped = true;
     out.steps.push("SWING : le côté vente de la table a été retiré après backtest sur 8 ans "+
       "de données réelles — un score de vente y était suivi de hausses supérieures à la "+
       "moyenne du marché. Un score haut en swing signifie « ne pas renforcer », jamais "+
       "« vendre ». La prise de profit relève de l'horizon POSITION.");
     return out;
   }
-
-  /* RÈGLE DE RÉGIME — la plus importante du prompt */
-  if(regime.label === "TENDANCE"){
-    if(dir === "sell"){
-      var hasDiv = div && div.bear;
-      var extremeVal = opt.mvrvSub !== null && opt.mvrvSub !== undefined && opt.mvrvSub >= 8.5;
-      if(!hasDiv && !extremeVal){
-        out.final = holdIdx(score); out.capped = true;
-        out.steps.push("RÉGIME TENDANCE + aucune divergence baissière confirmée → "+
-          "pas de vente. Le signal veut dire « ne pas renforcer », pas « vendre ».");
-        return out;
-      }
-      if(hasDiv)
-        out.steps.push("RÉGIME TENDANCE mais divergence baissière confirmée sur 2 sommets ("+
-          div.bear.bars+" bougies d'écart) → la prise de profit reste autorisée");
-      else
-        out.steps.push("RÉGIME TENDANCE, aucune divergence — mais MVRV en zone de sommet "+
-          "historique (sous-score "+num(opt.mvrvSub,2)+"/10) : exception explicite à la règle "+
-          "de régime, un extrême de valorisation est un signal structurel, pas un RSI tendu");
-    } else if(dir === "buy"){
-      var down = D.ema && D.ema.e50 < D.ema.e200;
-      if(down){
-        i = softer(i);
-        out.steps.push("RÉGIME TENDANCE baissière → achat réduit d'un cran : "+
-          "ne pas poursuivre une baisse en accélération");
-      }
-    }
-  } else if(regime.label === "TRANSITION"){
+  if(R.rule === "trend-block"){
+    out.final = R.i; out.capped = true;
+    out.steps.push("RÉGIME TENDANCE + aucune divergence baissière confirmée → "+
+      "pas de vente. Le signal veut dire « ne pas renforcer », pas « vendre ».");
+    return out;
+  }
+  if(R.rule === "trend-div")
+    out.steps.push("RÉGIME TENDANCE mais divergence baissière confirmée sur 2 sommets ("+
+      div.bear.bars+" bougies d'écart) → la prise de profit reste autorisée");
+  else if(R.rule === "trend-mvrv")
+    out.steps.push("RÉGIME TENDANCE, aucune divergence — mais MVRV en zone de sommet "+
+      "historique (sous-score "+num(opt.mvrvSub,2)+"/10) : exception explicite à la règle "+
+      "de régime, un extrême de valorisation est un signal structurel, pas un RSI tendu");
+  else if(R.rule === "trend-down-buy")
+    out.steps.push("RÉGIME TENDANCE baissière → achat réduit d'un cran : "+
+      "ne pas poursuivre une baisse en accélération");
+  i = R.i;
+  if(regime.label === "TRANSITION"){
     out.steps.push("Régime indéterminé (ni tendance ni range franc) → confiance réduite");
   } else if(regime.label === "RANGE"){
     out.steps.push("RÉGIME RANGE → l'exploitation des excès s'applique pleinement");
@@ -1096,36 +1240,27 @@ function computeVerdict(){
   var swMac = agg([{v:sMACD(A),tf:"4H"},{v:sMACD(B),tf:"1D"}]);
   var swStr = agg([{v:sStruct(A,[20,50]),tf:"4H"},{v:sStruct(B,[20,50]),tf:"1D"}]);
   V.swing = weighted([
-    {lbl:"RSI 4H + 1D",        w:50, v:swRsi.v, note:swRsi.note,
+    {lbl:"RSI 4H + 1D",        w:W_SWING.rsi, v:swRsi.v, note:swRsi.note,
      raw:(A&&B)?("RSI 4H "+num(A.rsi[A.last],1)+" · 1D "+num(B.rsi[B.last],1)):"N/D"},
-    {lbl:"MACD 4H + 1D",       w:30, v:swMac.v, note:swMac.note, raw:"rang historique sur 200 bougies"},
-    {lbl:"Structure vs EMA 20/50", w:20, v:swStr.v, note:swStr.note, raw:"écart du prix à ses moyennes, rang sur 200 bougies"}
+    {lbl:"MACD 4H + 1D",       w:W_SWING.macd, v:swMac.v, note:swMac.note, raw:"rang historique sur 200 bougies"},
+    {lbl:"Structure vs EMA 20/50", w:W_SWING.struct, v:swStr.v, note:swStr.note, raw:"écart du prix à ses moyennes, rang sur 200 bougies"}
   ]);
 
   /* --- POSITION : RSI 35 % · Structure 25 % · MVRV 40 % --- */
-  var mvrvZ = parseNum($("mMvrv").value);
-  /* Un MVRV périmé pèse 40 % du score position : on l'exclut plutôt que de le
-     laisser agir en silence. Il redevient N/D, les poids sont renormalisés. */
-  var mAge = manualAge(), mStale = manualStale();
-  var mvrvUsed = mStale ? null : mvrvZ;
-  var mvrvRaw;
-  if(mvrvZ===null)      mvrvRaw = "N/D — champ manuel vide";
-  else if(mAge===null)  mvrvRaw = "PÉRIMÉ — date de relevé absente ou illisible · exclu du score";
-  else if(mStale)       mvrvRaw = "PÉRIMÉ — relevé vieux de "+num(mAge,0)+" jours (limite "+
-                                  MANUAL_MAX_AGE+") · exclu du score";
-  else                  mvrvRaw = "Z = "+num(mvrvZ,2)+" · relevé du "+$("mDate").value+
-                                  " ("+num(mAge,0)+" j)";
+  /* MVRV : Coin Metrics d'abord, saisie manuelle en secours, sinon N/D (mvrvSource) */
+  var M = mvrvSource(Date.now());
   var poRsi = agg([{v:sRSI(B),tf:"1D"},{v:sRSI(C),tf:"1W"}]);
   V.position = weighted([
-    {lbl:"RSI 1D + 1W",         w:35, v:poRsi.v, note:poRsi.note,
+    {lbl:"RSI 1D + 1W",         w:W_POS.rsi, v:poRsi.v, note:poRsi.note,
      raw:(B&&C)?("RSI 1D "+num(B.rsi[B.last],1)+" · 1W "+num(C.rsi[C.last],1)):"N/D"},
-    {lbl:"Structure vs EMA 50/200", w:25, v:sStruct(B,[50,200]), note:null,
+    {lbl:"Structure vs EMA 50/200", w:W_POS.struct, v:sStruct(B,[50,200]), note:null,
      raw:"écart du prix à ses moyennes longues"},
-    {lbl:"MVRV Z-score",        w:40, v:mvrvScore(mvrvUsed), note:null, raw:mvrvRaw}
+    {lbl:"MVRV Z-score",        w:W_POS.mvrv, v:mvrvScore(M.z), note:null, raw:M.raw}
   ]);
 
-  var mvrvSub = mvrvScore(mvrvUsed);
+  var mvrvSub = mvrvScore(M.z);
   V.mvrvSub = mvrvSub;
+  V.mvrv = M;
   V.decSwing = decide(V.swing.score, "swing", V.regime.d1, V.div.d1, {});
   V.decPos   = decide(V.position.score, "position", V.regime.w1, V.div.w1, {mvrvSub:mvrvSub});
   V.ok = true;
@@ -1230,6 +1365,7 @@ var SRC = [
   {k:"spot",  n:"Binance — prix &amp; bougies"},
   {k:"fut",   n:"Binance — dérivés (OI, funding, long/short)"},
   {k:"fng",   n:"Alternative.me — Fear &amp; Greed"},
+  {k:"cm",    n:"Coin Metrics — MVRV &amp; prix réalisé"},
   {k:"manual",n:"Métriques lentes (saisie manuelle)"}
 ];
 var state = {};
@@ -1283,7 +1419,7 @@ var D = {};
 function loadAll(){
   $("refresh").disabled = true;
   $("refresh").innerHTML = '<span class="spin"></span> Chargement';
-  ["spot","fut","fng"].forEach(function(k){ state[k] = {cls:"wait",msg:"chargement…"}; });
+  ["spot","fut","fng","cm"].forEach(function(k){ state[k] = {cls:"wait",msg:"chargement…"}; });
   drawSources();
 
   var pSpot = Promise.all([
@@ -1318,7 +1454,15 @@ function loadAll(){
     state.fng = {cls:"ko",msg:"échec — "+e.message};
   });
 
-  return Promise.all([pSpot,pFut,pFng]).then(function(){
+  var pCm = cmLoad().then(function(c){
+    D.cm = c;
+    state.cm = {cls:"ok", msg:"OK · donnée du "+dateFrUTC(c.t)+(c.cache ? " · déjà téléchargée aujourd'hui" : "")};
+  }).catch(function(e){
+    D.cm = {err:e.message};
+    state.cm = {cls:"ko", msg:"échec — "+esc(e.message)+" · MVRV et prix réalisé passent sur la saisie manuelle"};
+  });
+
+  return Promise.all([pSpot,pFut,pFng,pCm]).then(function(){
     render();
     $("refresh").disabled = false;
     $("refresh").textContent = "Actualiser";
@@ -1510,6 +1654,8 @@ function render(){
     "</tbody></table>";
 
   renderVerdict();
+  renderCm();
+  renderManualAge();
   renderVisit();
   renderHist();
   drawSources();
@@ -1532,10 +1678,10 @@ function renderHist(){
     else if(r.hitSwing===null) inv = "—";
     else inv = r.hitSwing ? "<span class='tag t-red'>touchée</span>" : "<span class='tag t-grn'>tenue</span>";
     h += "<tr><td class='lbl'>"+new Date(e.ts).toLocaleDateString("fr-FR")+
-         (e.note ? "<div style='font-size:11px;color:var(--tx3)'>"+e.note+"</div>" : "")+"</td>"+
+         (e.note ? "<div style='font-size:11px;color:var(--tx3)'>"+esc(e.note)+"</div>" : "")+"</td>"+
          "<td class='n'>"+num(e.price,0)+" $</td>"+
-         "<td style='font-size:12.5px'>"+(e.actSwing||"—")+
-         "<div style='font-size:11px;color:var(--tx3)'>score "+num(e.sSwing,2)+" · régime "+(e.regD||"?")+"</div></td>"+
+         "<td style='font-size:12.5px'>"+esc(e.actSwing||"—")+
+         "<div style='font-size:11px;color:var(--tx3)'>score "+num(e.sSwing,2)+" · régime "+esc(e.regD||"?")+"</div></td>"+
          "<td class='n' style='color:"+(r.chg>0?"var(--grn)":"var(--red)")+"'>"+sgn(r.chg,2)+" %</td>"+
          "<td>"+inv+"</td>"+
          "<td style='text-align:right'><button data-del='"+idx+"' style='padding:4px 9px;font-size:12px'>Suppr.</button></td></tr>";
@@ -1722,6 +1868,20 @@ function renderVisit(){
   box.innerHTML = visitHtml(ref, cur);
 }
 
+/* Ce que Coin Metrics a fourni, ou pourquoi il manque. */
+function renderCm(){
+  var box = $("cmBox"), c = D.cm;
+  if(!box) return;
+  if(cmFresh(c, Date.now()))
+    box.innerHTML = "<div class='note'><b>MVRV Z-score "+num(c.z,2)+"</b> · ratio MVRV "+num(c.mvrv,2)+
+      " · prix réalisé "+(c.real!==null ? num(c.real,0)+" $" : "N/D")+" — Coin Metrics, donnée du "+
+      dateFrUTC(c.t)+". Calculés automatiquement : les deux champs de secours ci-dessous ne sont pas utilisés.</div>";
+  else if(c)
+    box.innerHTML = "<div class='note warn'><b>Coin Metrics "+(c.err ? "injoignable" : "en retard")+
+      ".</b> Le MVRV et le prix réalisé repassent sur ta saisie de secours ci-dessous — ou N/D si elle est vide ou périmée.</div>";
+  else box.innerHTML = "<div class='hint'>Coin Metrics : chargement…</div>";
+}
+
 /* ---------- Bloc pour le prompt ---------- */
 var MKEYS = ["mMvrv","mReal","mEtf1","mEtf30","mResv","mCbp"];
 function manualFilled(){
@@ -1732,8 +1892,9 @@ function renderManualAge(){
   var box = $("mAgeBox");
   if(!box) return;
   if(!manualFilled()){
-    box.innerHTML = "<div class='note'>Aucune métrique lente saisie : elles valent N/D. Le score position "+
-                    "est alors calculé sans le MVRV, sur 60 % du barème seulement.</div>";
+    box.innerHTML = "<div class='note'>Aucune métrique saisie à la main : flux ETF, réserves et premium valent N/D"+
+      (cmFresh(D.cm, Date.now()) ? ". Le MVRV vient de Coin Metrics."
+        : ". Sans Coin Metrics ni saisie de secours, le score position est calculé sans le MVRV, sur 60 % du barème seulement.")+"</div>";
     return;
   }
   var a = manualAge();
@@ -1745,7 +1906,7 @@ function renderManualAge(){
                     MANUAL_MAX_AGE+"). Ces chiffres sont exclus des scores et du gate de confirmation. "+
                     "Relève-les à nouveau et corrige la date.</div>";
   else
-    box.innerHTML = "<div class='note'>Relevé du "+$("mDate").value+" — "+num(a,0)+" jours. "+
+    box.innerHTML = "<div class='note'>Relevé du "+esc($("mDate").value)+" — "+num(a,0)+" jours. "+
                     "Encore valable "+num(MANUAL_MAX_AGE-a,0)+" jours.</div>";
 }
 function mv(id,suffix){
@@ -1765,9 +1926,9 @@ function buildBlock(){
   state.manual =
     !manualFilled() ? {cls:"ko",msg:"vides — passeront en N/D"} :
     mAge===null     ? {cls:"ko",msg:"date de relevé absente ou illisible — traitées comme N/D"} :
-    mStale          ? {cls:"ko",msg:"relevé du "+$("mDate").value+" — périmé ("+num(mAge,0)+
+    mStale          ? {cls:"ko",msg:"relevé du "+esc($("mDate").value)+" — périmé ("+num(mAge,0)+
                                     " j) — traitées comme N/D"} :
-                      {cls:"ok",msg:"relevé du "+$("mDate").value+" — "+num(mAge,0)+" j"};
+                      {cls:"ok",msg:"relevé du "+esc($("mDate").value)+" — "+num(mAge,0)+" j"};
   drawSources();
 
   var L = [];
@@ -1775,7 +1936,8 @@ function buildBlock(){
   L.push("Horodatage de génération : "+utcStr(now));
   L.push("Source technique et dérivés : Binance (API publique)");
   L.push("Source sentiment : Alternative.me");
-  L.push("Source on-chain : saisie manuelle"+
+  L.push("Source on-chain : Coin Metrics (MVRV, prix réalisé — licence CC BY-NC 4.0)");
+  L.push("Source flux : saisie manuelle (flux ETF, réserves, premium)"+
          ($("mDate").value ? " du "+$("mDate").value+(mStale?" — PÉRIMÉE, traitée comme N/D":"")
                            : " — date non précisée, traitée comme N/D"));
   L.push("");
@@ -1903,13 +2065,23 @@ function buildBlock(){
     L.push("Moyenne 30 jours : "+num(D.fngAvg,1)+" — "+fngTag(D.fngAvg)[0]);
   } else { L.push("N/D"); }
   L.push("");
-  L.push("--- ON-CHAIN ET FLUX (saisie manuelle"+
+  L.push("--- ON-CHAIN (Coin Metrics, calcul automatique quotidien) ---");
+  if(cmFresh(D.cm, now)){
+    L.push("MVRV Z-score : "+num(D.cm.z,2)+"  (donnée du "+dateFrUTC(D.cm.t)+" · Z = (capitalisation − capitalisation réalisée) ÷ écart-type de la capitalisation depuis 2010)");
+    L.push("Ratio MVRV : "+num(D.cm.mvrv,2));
+    L.push("Prix réalisé : "+(D.cm.real!==null ? num(D.cm.real,0)+" $" : "N/D")+"  (même date)");
+  } else {
+    L.push("Coin Metrics : "+(D.cm && D.cm.err ? "injoignable ("+D.cm.err+")" : (D.cm ? "donnée trop ancienne" : "non chargé"))+
+           " — valeurs de secours saisies à la main :");
+    L.push("MVRV Z-score : "+mv("mMvrv"));
+    L.push("Prix réalisé : "+mv("mReal"," $"));
+  }
+  L.push("");
+  L.push("--- FLUX (saisie manuelle"+
          (mAge===null ? ", DATE DE RELEVÉ ABSENTE OU ILLISIBLE — tout est traité comme N/D"
           : mStale    ? ", relevé du "+$("mDate").value+" — PÉRIMÉ ("+num(mAge,0)+" jours, limite "+
                         MANUAL_MAX_AGE+") : tout est traité comme N/D et exclu des scores"
           :             ", relevé du "+$("mDate").value+", "+num(mAge,0)+" jours")+") ---");
-  L.push("MVRV Z-score : "+mv("mMvrv"));
-  L.push("Prix réalisé : "+mv("mReal"," $"));
   L.push("Flux ETF spot US — jour : "+mv("mEtf1"," M$"));
   L.push("Flux ETF spot US — cumul 30j : "+mv("mEtf30"," M$"));
   L.push("Réserves exchanges : "+mv("mResv"));
@@ -1985,10 +2157,13 @@ function buildBlock(){
   if(D.fundNow===undefined) fast.push("funding");
   if(D.oiBtc===undefined) fast.push("OI");
   var slow = [];
-  ["mMvrv","mResv","mEtf1","mCbp"].forEach(function(k,i){
+  var VM = (D.verdict && D.verdict.ok) ? D.verdict.mvrv : null;
+  if(!VM || VM.z === null)
+    slow.push("MVRV" + ((mStale && $("mMvrv").value.trim()!=="") ? " (périmé)" : ""));
+  ["mResv","mEtf1","mCbp"].forEach(function(k,i){
     /* périmée = manquante : c'est le même vide, il doit compter pareil */
     if(mStale || $(k).value.trim()==="")
-      slow.push(["MVRV","réserves exchanges","flux ETF","Coinbase premium"][i] +
+      slow.push(["réserves exchanges","flux ETF","Coinbase premium"][i] +
                 ((mStale && $(k).value.trim()!=="") ? " (périmé)" : ""));
   });
   if(D.fngNow===undefined) slow.push("Fear & Greed");
@@ -2007,21 +2182,23 @@ function buildBlock(){
 
 
 /* =================== BACKTEST (onglet) ===================
-   Même page, mêmes formules que le cockpit : le backtest appelle rsiSeries,
-   macdSeries, emaSeries, pctRank, regimeOf, tierFor, holdIdx et TIERS du cockpit.
-   Il n'en existe plus de seconde copie — donc plus de dérive possible entre ce
-   que le cockpit calcule et ce que le backtest valide. */
-function btFetchDaily(days){
-  var need = days + 320;                     /* marge pour EMA200 et percentiles */
+   Même page, mêmes formules que le cockpit : les trois backtests appellent
+   rsiSeries, macdSeries, emaSeries, pctRank, agg, weighted, mvrvScore, mvrvZSeries,
+   regimeOf, divergences, tierRules, W_SWING, W_POS et TIERS du cockpit. Il n'en
+   existe pas de seconde copie — donc pas de dérive possible entre ce que le cockpit
+   calcule et ce que le backtest valide. Un test le vérifie jour par jour. */
+
+/* Historique Binance d'une unité de temps, en remontant le temps page par page. */
+function btFetchKlines(interval, need, onProgress){
   var out = [], end = Date.now();
   function page(){
     if(out.length >= need) return Promise.resolve(out);
-    return spot("/api/v3/klines?symbol=BTCUSDT&interval=1d&limit=1000&endTime="+end)
+    return spot("/api/v3/klines?symbol=BTCUSDT&interval="+interval+"&limit=1000&endTime="+end)
       .then(function(k){
         if(!k.length) return out;
         out = k.concat(out);
         end = k[0][0] - 1;
-        $("btStatus").textContent = out.length + " jours récupérés…";
+        if(onProgress) onProgress(out.length);
         if(k.length < 1000) return out;
         return page();
       });
@@ -2031,8 +2208,58 @@ function btFetchDaily(days){
     return a.filter(function(k){ return k[6] < now; });   /* bougies clôturées seulement */
   });
 }
+function btFetchDaily(days){
+  return btFetchKlines("1d", days + 320, function(n){ $("btStatus").textContent = n+" jours récupérés…"; });
+}
 
-/* ---------- simulation ---------- */
+/* ---------- mécanique commune aux trois backtests ---------- */
+function btRun0(alloc, p0){
+  return {btc:alloc/100/p0, cash:(100-alloc)/100, trades:[], eq:[], last:-Infinity};
+}
+/* Exécute un palier sur un portefeuille simulé, au cours px, à l'instant when.
+   Le délai de carence est compté en temps réel : 7 jours valent 7 jours en
+   journalier comme en 4 heures. */
+function btExec(run, id, px, fee, cool, when, info){
+  var T = TIERS[id];
+  if(T.dir === "hold") return;
+  if(when - run.last < cool*86400000) return;             /* délai de carence */
+  run.last = when;
+  if(T.dir === "sell" && run.btc > 0){
+    var q = run.btc*((T.lo+T.hi)/200);
+    run.btc -= q; run.cash += q*px*(1-fee/100);
+    run.trades.push({t:when, type:"vente", px:px, qty:q, score:info.score, reg:info.reg});
+  } else if(T.dir === "buy" && run.cash > 0){
+    var c = run.cash*((T.lo+T.hi)/200);
+    run.cash -= c; run.btc += c/px*(1-fee/100);
+    run.trades.push({t:when, type:"achat", px:px, qty:c, score:info.score, reg:info.reg});
+  }
+}
+function btValue(run, px){ return run.btc*px + run.cash; }
+/* Rendement futur après un signal, pour juger le signal lui-même.
+   h = horizons en jours ; spd = bougies par jour. */
+function btFwd0(h, keys){
+  var F = {h:h};
+  ["all"].concat(keys).forEach(function(k){ F[k] = {}; h.forEach(function(x){ F[k][x] = []; }); });
+  return F;
+}
+function btFwdAdd(F, key, close, i, spd){
+  F.h.forEach(function(x){ var j = i + x*spd; if(j < close.length) F[key][x].push((close[j]/close[i]-1)*100); });
+}
+/* Rang percentile (0-10) de la valeur i parmi les 200 dernières, i comprise :
+   exactement ce que le cockpit lit avec slice(-200). */
+function btRank(arr, i){
+  if(!arr || arr[i] === undefined) return null;
+  var q = pctRank(arr.slice(Math.max(0, i-199), i+1), arr[i]);
+  return q === null ? null : q*10;
+}
+function btRsi10(r, i){ return r[i] === undefined ? null : Math.max(0, Math.min(10, r[i]/10)); }
+function btDist(c, e){ var o = []; for(var i=0;i<c.length;i++) if(e[i] !== undefined) o[i] = c[i]/e[i]-1; return o; }
+function btAvg(v){
+  var o = v.filter(function(x){ return x !== null && x !== undefined; });
+  return o.length ? o.reduce(function(a,b){ return a+b; },0)/o.length : null;
+}
+
+/* ---------- SWING, bougies journalières ---------- */
 function simulate(kl, days, alloc, fee, cool){
   var close = kl.map(function(k){ return parseFloat(k[4]); });
   var open  = kl.map(function(k){ return parseFloat(k[1]); });
@@ -2040,88 +2267,226 @@ function simulate(kl, days, alloc, fee, cool){
   var n = close.length;
 
   /* Indicateurs causals : calculés une fois, lus à l'instant t. */
-  var rsi = rsiSeries(close,14);
-  var mac = macdSeries(close);
-  var e20 = emaSeries(close,20), e50 = emaSeries(close,50);
-  var d20 = [], d50 = [], i;
-  for(i=0;i<n;i++){
-    if(e20[i]!==undefined) d20[i] = close[i]/e20[i]-1;
-    if(e50[i]!==undefined) d50[i] = close[i]/e50[i]-1;
-  }
+  var rsi = rsiSeries(close,14), mac = macdSeries(close);
+  var e50 = emaSeries(close,50), e200 = emaSeries(close,200);
+  var d20 = btDist(close, emaSeries(close,20)), d50 = btDist(close, e50);
   function scoreAt(t){
-    var parts = [], W = 0, S = 0;
-    var r = rsi[t];
-    if(r!==undefined){ var v=Math.max(0,Math.min(10,r/10)); S+=v*50; W+=50; parts.push(v); }
-    if(mac && mac.hist[t]!==undefined){
-      var p = pctRank(mac.hist.slice(Math.max(0,t-199),t+1), mac.hist[t]);
-      if(p!==null){ S+=p*10*30; W+=30; }
-    }
-    var sv = [];
-    [[d20],[d50]].forEach(function(a){
-      var d = a[0];
-      if(d[t]===undefined) return;
-      var q = pctRank(d.slice(Math.max(0,t-199),t+1), d[t]);
-      if(q!==null) sv.push(q*10);
-    });
-    if(sv.length){ var m=sv.reduce(function(a,b){return a+b;},0)/sv.length; S+=m*20; W+=20; }
-    return W ? S/W : null;
+    return weighted([
+      {lbl:"RSI",       w:W_SWING.rsi,    v:btRsi10(rsi,t)},
+      {lbl:"MACD",      w:W_SWING.macd,   v:mac ? btRank(mac.hist,t) : null},
+      {lbl:"Structure", w:W_SWING.struct, v:btAvg([btRank(d20,t), btRank(d50,t)])}
+    ]).score;
   }
   var start = Math.max(260, n - days);
   var p0 = close[start];
-  var runs = {
-    regime: {btc:alloc/100/p0, cash:(100-alloc)/100, trades:[], eq:[], last:-1e9},
-    plain:  {btc:alloc/100/p0, cash:(100-alloc)/100, trades:[], eq:[], last:-1e9}
-  };
+  var runs = { regime: btRun0(alloc,p0), plain: btRun0(alloc,p0) };
   var hold = {btc:alloc/100/p0, cash:(100-alloc)/100, eq:[]};
-  var dates = [], fwd = {sell:[], buy:[]};
+  var dates = [], fwd = btFwd0([15], ["sell","buy"]);
 
   for(var t=start; t<n-1; t++){
     var sc = scoreAt(t);
     var px = open[t+1];                  /* exécution à l'ouverture du lendemain */
     var reg = regimeOf(close.slice(0,t+1)).label;
     var idx = sc===null ? holdIdx(5) : tierFor(sc);
-
-    /* Variante « règles actuelles du cockpit », horizon SWING :
-       - aucune vente sur signal technique. Retirée le 8 septembre 2026 après ce
-         backtest : un score de vente était suivi de hausses supérieures à la
-         moyenne, sur les deux périodes testées ;
-       - achat toujours réduit d'un cran en tendance baissière. */
-    var idxR = idx;
-    if(sc!==null && TIERS[idx].dir==="sell") idxR = holdIdx(sc);
-    if(sc!==null && TIERS[idx].dir==="buy"  && reg==="TENDANCE" && e50[t]!==undefined
-       && e20[t]!==undefined && close[t]<e50[t]) idxR = Math.max(idx-1,3);
-
-    function exec(run, id){
-      var T = TIERS[id];
-      if(T.dir!=="hold" && (t - run.last) < cool) return;   /* délai de carence */
-      if(T.dir!=="hold") run.last = t;
-      if(T.dir==="sell" && run.btc>0){
-        var q = run.btc*((T.lo+T.hi)/200);
-        run.btc -= q; run.cash += q*px*(1-fee/100);
-        run.trades.push({t:time[t+1],type:"vente",px:px,qty:q,score:sc,reg:reg});
-      } else if(T.dir==="buy" && run.cash>0){
-        var c = run.cash*((T.lo+T.hi)/200);
-        run.cash -= c; run.btc += c/px*(1-fee/100);
-        run.trades.push({t:time[t+1],type:"achat",px:px,qty:c,score:sc,reg:reg});
-      }
-    }
-    exec(runs.regime, idxR);
-    exec(runs.plain,  idx);
+    /* Règles actuelles du cockpit, horizon SWING — tierRules, la fonction du cockpit
+       lui-même : aucune vente ; achat réduit d'un cran en tendance baissière. */
+    var idxR = sc===null ? idx : tierRules(sc, "swing", reg, false, null, e50[t] < e200[t]).i;
+    var info = {score:sc, reg:reg};
+    btExec(runs.regime, idxR, px, fee, cool, time[t+1], info);
+    btExec(runs.plain,  idx,  px, fee, cool, time[t+1], info);
 
     /* diagnostic : rendement des 15 jours suivants après chaque signal */
-    if(sc!==null && t+16 < n){
-      var f = (close[t+15]/close[t]-1)*100;
-      if(TIERS[idx].dir==="sell") fwd.sell.push(f);
-      if(TIERS[idx].dir==="buy")  fwd.buy.push(f);
+    if(sc!==null){
+      btFwdAdd(fwd, "all", close, t, 1);
+      if(TIERS[idx].dir !== "hold") btFwdAdd(fwd, TIERS[idx].dir, close, t, 1);
     }
-
     var pc = close[t];
-    runs.regime.eq.push(runs.regime.btc*pc + runs.regime.cash);
-    runs.plain.eq.push(runs.plain.btc*pc + runs.plain.cash);
-    hold.eq.push(hold.btc*pc + hold.cash);
+    runs.regime.eq.push(btValue(runs.regime, pc));
+    runs.plain.eq.push(btValue(runs.plain, pc));
+    hold.eq.push(btValue(hold, pc));
     dates.push(time[t]);
   }
-  return {runs:runs, hold:hold, dates:dates, fwd:fwd, from:time[start], to:time[n-1]};
+  return { runs:runs, hold:hold, dates:dates, fwd:fwd, from:time[start], to:time[n-1],
+    titre:"SWING, bougies journalières", pas:"jours", fwdMain:15,
+    list:[{lbl:"Règles actuelles du cockpit", court:"Actuel", col:"var(--s1)", run:runs.regime},
+          {lbl:"Grille d'origine, avec les ventes", court:"Origine", col:"var(--s2)", run:runs.plain}],
+    fwdRows:[{key:"sell", lbl:"Vente (score élevé)", dir:"sell"},
+             {key:"buy",  lbl:"Achat (score bas)",   dir:"buy"}] };
+}
+
+/* ---------- SWING complet : 4 heures ET journalier ----------
+   Le score est celui du cockpit : RSI, MACD et structure sur les deux unités de
+   temps, agrégées par agg. Décision à chaque clôture 4 heures, avec la dernière
+   bougie journalière close à cet instant. Exécution à l'ouverture de la bougie
+   4 heures suivante. */
+function simulate4h(k4, kd, days, alloc, fee, cool){
+  function col(kl, j){ return kl.map(function(k){ return parseFloat(k[j]); }); }
+  var c4 = col(k4,4), o4 = col(k4,1);
+  var t4 = k4.map(function(k){ return k[0]; }), f4 = k4.map(function(k){ return k[6]; });
+  var cD = col(kd,4), fD = kd.map(function(k){ return k[6]; });
+  var n = c4.length, nd = cD.length, i, d;
+
+  var rsi4 = rsiSeries(c4,14), mac4 = macdSeries(c4);
+  var a20 = btDist(c4, emaSeries(c4,20)), a50 = btDist(c4, emaSeries(c4,50));
+  var rsiD = rsiSeries(cD,14), macD = macdSeries(cD);
+  var e50D = emaSeries(cD,50), e200D = emaSeries(cD,200);
+  var b20 = btDist(cD, emaSeries(cD,20)), b50 = btDist(cD, e50D);
+  var regD = [];
+  for(d=0; d<nd; d++) regD[d] = regimeOf(cD.slice(0,d+1)).label;
+
+  /* dernière bougie journalière close à la clôture de chaque bougie 4 heures */
+  var dOf = [];
+  for(i=0, d=-1; i<n; i++){ while(d+1 < nd && fD[d+1] <= f4[i]) d++; dOf[i] = d; }
+
+  /* le cockpit ignore une unité de temps qui a moins de 60 bougies : pareil ici */
+  function scoreAt(j, d){
+    var A = j >= 59, B = d >= 59;
+    return weighted([
+      {lbl:"RSI", w:W_SWING.rsi, v:agg([{v:A ? btRsi10(rsi4,j) : null, tf:"4H"},
+                                        {v:B ? btRsi10(rsiD,d) : null, tf:"1D"}]).v},
+      {lbl:"MACD", w:W_SWING.macd, v:agg([{v:(A && mac4) ? btRank(mac4.hist,j) : null, tf:"4H"},
+                                          {v:(B && macD) ? btRank(macD.hist,d) : null, tf:"1D"}]).v},
+      {lbl:"Structure", w:W_SWING.struct, v:agg([{v:A ? btAvg([btRank(a20,j), btRank(a50,j)]) : null, tf:"4H"},
+                                                 {v:B ? btAvg([btRank(b20,d), btRank(b50,d)]) : null, tf:"1D"}]).v}
+    ]).score;
+  }
+
+  var start = 0;
+  while(start < n-1 && (start < 260 || dOf[start] < 260)) start++;
+  start = Math.max(start, n - days*6);
+  if(start >= n-1) throw new Error("historique 4 heures insuffisant pour ce calcul");
+  var p0 = c4[start];
+  var runs = { regime: btRun0(alloc,p0), plain: btRun0(alloc,p0) };
+  var hold = {btc:alloc/100/p0, cash:(100-alloc)/100, eq:[]};
+  var dates = [], fwd = btFwd0([15], ["sell","buy"]), scores = [];
+
+  for(var j=start; j<n-1; j++){
+    d = dOf[j];
+    var sc = scoreAt(j, d);
+    scores[j] = sc;
+    var px = o4[j+1], reg = regD[d];
+    var idx = sc===null ? holdIdx(5) : tierFor(sc);
+    var idxR = sc===null ? idx : tierRules(sc, "swing", reg, false, null, e50D[d] < e200D[d]).i;
+    var info = {score:sc, reg:reg};
+    btExec(runs.regime, idxR, px, fee, cool, t4[j+1], info);
+    btExec(runs.plain,  idx,  px, fee, cool, t4[j+1], info);
+    if(sc!==null){
+      btFwdAdd(fwd, "all", c4, j, 6);
+      if(TIERS[idx].dir !== "hold") btFwdAdd(fwd, TIERS[idx].dir, c4, j, 6);
+    }
+    /* courbe : une valeur par jour, à la dernière clôture 4 heures de la journée UTC */
+    if(j === start || (f4[j]+1) % 86400000 === 0 || j === n-2){
+      var pc = c4[j];
+      runs.regime.eq.push(btValue(runs.regime, pc));
+      runs.plain.eq.push(btValue(runs.plain, pc));
+      hold.eq.push(btValue(hold, pc));
+      dates.push(t4[j]);
+    }
+  }
+  return { runs:runs, hold:hold, dates:dates, fwd:fwd, from:t4[start], to:t4[n-1], scores:scores, dOf:dOf,
+    titre:"SWING, 4 heures et journalier", pas:"bougies 4 h", fwdMain:15,
+    list:[{lbl:"Règles actuelles du cockpit", court:"Actuel", col:"var(--s1)", run:runs.regime},
+          {lbl:"Grille d'origine, avec les ventes", court:"Origine", col:"var(--s2)", run:runs.plain}],
+    fwdRows:[{key:"sell", lbl:"Vente (score élevé)", dir:"sell"},
+             {key:"buy",  lbl:"Achat (score bas)",   dir:"buy"}] };
+}
+
+/* Bougies hebdomadaires reconstituées à partir de clôtures quotidiennes : semaine du
+   lundi au dimanche UTC, comme Binance. Clôture = celle du dimanche ; haut et bas =
+   extrêmes des clôtures de la semaine (une série de clôtures n'a pas de mèches).
+   Une semaine n'existe qu'une fois close. at[i] = dernière semaine close le jour i. */
+function weeklyFromDaily(time, close){
+  var raw = [], i;
+  for(i=0;i<time.length;i++){
+    var dt = new Date(time[i]), dow = (dt.getUTCDay()+6)%7;           /* 0 = lundi */
+    var ws = Date.UTC(dt.getUTCFullYear(), dt.getUTCMonth(), dt.getUTCDate()) - dow*86400000;
+    var w = raw.length ? raw[raw.length-1] : null, v = close[i];
+    if(!w || w.t !== ws){
+      if(w && w.fin === null) w.fin = i;       /* dimanche manquant : close dès qu'on le sait */
+      w = {t:ws, c:v, h:v, l:v, fin:null};
+      raw.push(w);
+    } else { w.c = v; if(v > w.h) w.h = v; if(v < w.l) w.l = v; }
+    if(dow === 6) w.fin = i;
+  }
+  var W = {t:[], c:[], h:[], l:[], fin:[], at:[]};
+  raw.forEach(function(w){
+    if(w.fin === null) return;                 /* semaine en cours : pas encore une bougie */
+    W.t.push(w.t); W.c.push(w.c); W.h.push(w.h); W.l.push(w.l); W.fin.push(w.fin);
+  });
+  for(i=0, w=-1; i<time.length; i++){ while(w+1 < W.fin.length && W.fin[w+1] <= i) w++; W.at[i] = w; }
+  return W;
+}
+
+/* ---------- POSITION : journalier, hebdomadaire et MVRV ----------
+   Données Coin Metrics (prix de référence quotidien, capitalisation, ratio MVRV).
+   Le MVRV Z-score de chaque jour ne connaît que l'histoire jusqu'à ce jour.
+   Règle de régime lue sur l'hebdomadaire, comme dans le cockpit. Exécution au prix
+   de référence du lendemain : cette série n'a pas de cours d'ouverture. */
+function simulatePosition(S, days, alloc, fee, cool){
+  var time = [], close = [], mc = [], mv = [], i;
+  for(i=0;i<S.t.length;i++) if(S.px[i] > 0){ time.push(S.t[i]); close.push(S.px[i]); mc.push(S.mc[i]); mv.push(S.mv[i]); }
+  var n = close.length;
+
+  var z = mvrvZSeries(mc, mv);
+  var rsiD = rsiSeries(close,14);
+  var e50 = emaSeries(close,50), e200 = emaSeries(close,200);
+  var d50 = btDist(close, e50), d200 = btDist(close, e200);
+  var W = weeklyFromDaily(time, close);
+  var rsiW = rsiSeries(W.c,14), regW = [], divW = [];
+  for(var w=0; w<W.c.length; w++){
+    regW[w] = regimeOf(W.c.slice(0,w+1)).label;
+    divW[w] = !!divergences(W.h.slice(0,w+1), W.l.slice(0,w+1), rsiW.slice(0,w+1), 3, 5).bear;
+  }
+
+  var start = 0;
+  while(start < n-1 && (start < 400 || W.at[start] < 59)) start++;
+  start = Math.max(start, n - days);
+  if(start >= n-1) throw new Error("historique Coin Metrics insuffisant pour ce calcul");
+  var p0 = close[start];
+  var runs = { actuel:btRun0(alloc,p0), sansExc:btRun0(alloc,p0), sansVente:btRun0(alloc,p0), brut:btRun0(alloc,p0) };
+  var hold = {btc:alloc/100/p0, cash:(100-alloc)/100, eq:[]};
+  var dates = [], fwd = btFwd0([30,90,180], ["sell","sellR","buy"]), scores = [];
+
+  for(var t=start; t<n-1; t++){
+    w = W.at[t];
+    var hasW = w >= 59;                         /* le cockpit exige 60 bougies hebdo */
+    var sub = mvrvScore(z[t]);
+    var sc = weighted([
+      {lbl:"RSI", w:W_POS.rsi, v:agg([{v:btRsi10(rsiD,t), tf:"1D"},
+                                      {v:hasW ? btRsi10(rsiW,w) : null, tf:"1W"}]).v},
+      {lbl:"Structure", w:W_POS.struct, v:btAvg([btRank(d50,t), btRank(d200,t)])},
+      {lbl:"MVRV", w:W_POS.mvrv, v:sub}
+    ]).score;
+    scores[t] = sc;
+    var reg = hasW ? regW[w] : "N/D", bear = hasW ? divW[w] : false, down = e50[t] < e200[t];
+    var idx = sc===null ? holdIdx(5) : tierFor(sc);
+    var iA = sc===null ? idx : tierRules(sc, "position", reg, bear, sub, down).i;
+    var iB = sc===null ? idx : tierRules(sc, "position", reg, bear, sub, down, true).i;
+    var iC = TIERS[iA].dir === "sell" ? holdIdx(sc) : iA;
+    var px = close[t+1], when = time[t+1], info = {score:sc, reg:reg};
+    btExec(runs.actuel,    iA,  px, fee, cool, when, info);
+    btExec(runs.sansExc,   iB,  px, fee, cool, when, info);
+    btExec(runs.sansVente, iC,  px, fee, cool, when, info);
+    btExec(runs.brut,      idx, px, fee, cool, when, info);
+    if(sc!==null){
+      btFwdAdd(fwd, "all", close, t, 1);
+      if(TIERS[idx].dir !== "hold") btFwdAdd(fwd, TIERS[idx].dir, close, t, 1);
+      if(TIERS[iA].dir === "sell") btFwdAdd(fwd, "sellR", close, t, 1);
+    }
+    var pc = close[t];
+    for(var k in runs) runs[k].eq.push(btValue(runs[k], pc));
+    hold.eq.push(btValue(hold, pc));
+    dates.push(time[t]);
+  }
+  return { runs:runs, hold:hold, dates:dates, fwd:fwd, from:time[start], to:time[n-1], scores:scores, W:W,
+    titre:"POSITION", pas:"jours", fwdMain:90,
+    list:[{lbl:"Règles actuelles du cockpit", court:"Actuel", col:"var(--s1)", run:runs.actuel},
+          {lbl:"Sans l'exception MVRV", court:"Sans exception", col:"var(--s4)", run:runs.sansExc},
+          {lbl:"Sans aucune vente", court:"Sans vente", col:"var(--s5)", run:runs.sansVente},
+          {lbl:"Grille brute, sans règle de régime", court:"Brute", col:"var(--s2)", run:runs.brut}],
+    fwdRows:[{key:"sell",  lbl:"Vente (score élevé)", dir:"sell"},
+             {key:"sellR", lbl:"Vente retenue par les règles actuelles", dir:"sell"},
+             {key:"buy",   lbl:"Achat (score bas)", dir:"buy"}] };
 }
 
 function maxDD(e){
@@ -2132,53 +2497,94 @@ function maxDD(e){
 function mean(a){ return a.length ? a.reduce(function(x,y){return x+y;},0)/a.length : null; }
 
 /* ---------- rendu ---------- */
-var BT_CH = null;
-function btDraw(R){
-  var A = R.runs.regime.eq, B = R.runs.plain.eq, C = R.hold.eq;
-  var base = [A[0],B[0],C[0]];
-  var nA = A.map(function(v){ return v/base[0]*100; });
-  var nB = B.map(function(v){ return v/base[1]*100; });
-  var nC = C.map(function(v){ return v/base[2]*100; });
-  var all = nA.concat(nB,nC);
-  var lo = Math.min.apply(null,all), hi = Math.max.apply(null,all);
-  var pad = (hi-lo)*0.08 || 10; lo -= pad; hi += pad;
-  var W=1000, H=380, ml=54, mr=104, mt=16, mb=34;
-  var pw = W-ml-mr, ph = H-mt-mb, n = nA.length;
-  var X = function(i){ return ml + i/(n-1)*pw; };
-  var Y = function(v){ return mt + (1-(v-lo)/(hi-lo))*ph; };
-  function path(a){ return a.map(function(v,i){ return (i?"L":"M")+X(i).toFixed(1)+" "+Y(v).toFixed(1); }).join(" "); }
+function btScopeHtml(hz){
+  var gate = "<b>Non testé :</b> le gate des 7 signaux de confirmation. L'historique du funding, de l'open interest et des liquidations n'est pas disponible gratuitement au-delà de quelques semaines : le gate ne peut pas être rejoué.<br>";
+  if(hz === "position") return "<div class='note warn'>"+
+    "<b>Comparaison :</b> les <b>règles actuelles POSITION</b> du cockpit (règle de régime lue sur l'hebdomadaire, exception MVRV comprise), les mêmes <b>sans l'exception MVRV</b>, les mêmes <b>sans aucune vente</b>, la <b>grille brute</b> sans règle de régime, et le fait de ne rien faire.<br>"+
+    "<b>Testé :</b> le score POSITION complet — RSI journalier et hebdomadaire, structure par rapport aux EMA 50 et 200, MVRV Z-score — et la table score → action.<br>"+
+    "<b>Données :</b> Coin Metrics — prix de référence quotidien, capitalisation et ratio MVRV depuis 2010. Le MVRV Z-score de chaque jour est recalculé avec la seule histoire connue ce jour-là. Les bougies hebdomadaires sont reconstituées à partir des prix quotidiens (lundi-dimanche UTC) : sans mèches, les divergences hebdomadaires sont lues sur les clôtures.<br>"+
+    "<b>Exécution :</b> au prix de référence du lendemain, faute de cours d'ouverture dans cette série.<br>"+gate+
+    "<b>Attention :</b> les années 2010 à 2012 reposent sur un marché minuscule et peu liquide. Lis les résultats cycle par cycle plutôt que sur toute la période.</div>";
+  if(hz === "swing-4h") return "<div class='note warn'>"+
+    "<b>Comparaison :</b> les <b>règles actuelles du cockpit</b> (aucune vente sur signal technique swing, achat réduit d'un cran en tendance baissière) contre la <b>grille d'origine</b> qui vendait sur score élevé, et contre le fait de ne rien faire.<br>"+
+    "<b>Testé :</b> le score SWING exactement comme le cockpit le calcule — RSI, MACD et structure en 4 heures ET en journalier, avec la même agrégation des deux unités de temps. Décision à chaque clôture 4 heures, exécution à l'ouverture de la bougie 4 heures suivante.<br>"+gate+
+    "<b>Données :</b> Binance, bougies 4 heures disponibles depuis août 2017 — une vingtaine de téléchargements pour tout l'historique.</div>";
+  return "<div class='note warn'>"+
+    "<b>Comparaison :</b> les <b>règles actuelles du cockpit</b> (aucune vente sur signal technique swing, achat réduit d'un cran en tendance baissière) contre la <b>grille d'origine</b> qui vendait sur score élevé, et contre le fait de ne rien faire.<br>"+
+    "<b>Pourquoi les ventes swing ont été retirées :</b> ce backtest, lancé le 8 septembre 2026 sur 8 ans de bougies réelles coupées en deux périodes, a montré qu'un score de vente était suivi de rendements <b>supérieurs</b> à la moyenne du marché — sur les deux périodes. Le score mesure du momentum, pas un essoufflement. Le tableau « valeur prédictive » plus bas te le montre à chaque exécution.<br>"+
+    "<b>Testé :</b> le score technique (RSI, MACD, structure) sur bougies journalières, et la table score → action.<br>"+gate+
+    "<b>Conclusion :</b> ce backtest juge <b>l'horizon SWING</b>, calculé sur bougies journalières seulement. Le score swing complet, avec le 4 heures, et l'horizon POSITION ont chacun leur propre backtest : choisis-les dans « Horizon testé ».</div>";
+}
 
-  var ticks = 5, gh = "";
-  for(var i=0;i<=ticks;i++){
-    var v = lo + (hi-lo)*i/ticks, y = Y(v);
+var BT_CH = null;
+function btFmt(v){
+  if(v >= 1e6) return num(v/1e6, v >= 1e7 ? 0 : 1)+" M";
+  if(v >= 1e4) return num(v/1e3, 0)+" k";
+  return num(v, 0);
+}
+function btDraw(R){
+  var S = R.list.map(function(v){ return {nom:v.court, col:v.col, eq:v.run.eq}; })
+           .concat([{nom:"Conserver", col:"var(--s3)", eq:R.hold.eq}]);
+  var lo = Infinity, hi = -Infinity;
+  S.forEach(function(s){
+    var b = s.eq[0];
+    s.v = s.eq.map(function(x){ var y = x/b*100; if(y < lo) lo = y; if(y > hi) hi = y; return y; });
+  });
+  /* au-delà d'un facteur 20 entre le plus bas et le plus haut, une échelle linéaire
+     écrase tout le début de la courbe : on passe en échelle logarithmique */
+  var logY = hi/lo > 20;
+  var f = logY ? function(v){ return Math.log(v)/Math.LN10; } : function(v){ return v; };
+  var W=1000, H=380, ml=62, mr=150, mt=16, mb=34;
+  var pw = W-ml-mr, ph = H-mt-mb, n = S[0].v.length;
+  var a = f(lo), z = f(hi), pad = (z-a)*0.06 || 1; a -= pad; z += pad;
+  var X = function(i){ return ml + (n > 1 ? i/(n-1) : 0)*pw; };
+  var Y = function(v){ return mt + (1-(f(v)-a)/(z-a))*ph; };
+  function path(v){ return v.map(function(y,i){ return (i?"L":"M")+X(i).toFixed(1)+" "+Y(y).toFixed(1); }).join(" "); }
+
+  var ticks = [], e, i;
+  if(logY){
+    for(e=Math.floor(a); e<=Math.ceil(z); e++)
+      [1,2,5].forEach(function(m){ var v = m*Math.pow(10,e); if(f(v) >= a && f(v) <= z) ticks.push(v); });
+    if(ticks.length > 8) ticks = ticks.filter(function(v){ return Math.abs(f(v) - Math.round(f(v))) < 1e-9; });
+  } else {
+    for(i=0;i<=5;i++) ticks.push(a + (z-a)*i/5);
+  }
+  var gh = "";
+  ticks.forEach(function(v){
+    var y = Y(v);
     gh += "<line x1='"+ml+"' y1='"+y.toFixed(1)+"' x2='"+(ml+pw)+"' y2='"+y.toFixed(1)+
           "' stroke='var(--bd)' stroke-width='1'/>"+
           "<text x='"+(ml-9)+"' y='"+(y+4).toFixed(1)+"' text-anchor='end' font-size='11' fill='var(--tx3)'>"+
-          Math.round(v)+"</text>";
-  }
+          btFmt(v)+"</text>";
+  });
   var xt = "";
   [0, Math.floor(n/3), Math.floor(2*n/3), n-1].forEach(function(i){
     xt += "<text x='"+X(i).toFixed(1)+"' y='"+(H-10)+"' text-anchor='middle' font-size='11' fill='var(--tx3)'>"+
           new Date(R.dates[i]).toLocaleDateString("fr-FR",{month:"short",year:"2-digit"})+"</text>";
   });
-  function endLbl(a,color,txt){
-    var y = Y(a[a.length-1]);
-    return "<text x='"+(ml+pw+9)+"' y='"+(y+4).toFixed(1)+"' font-size='12' font-weight='650' fill='"+color+"'>"+
-           txt+" "+Math.round(a[a.length-1])+"</text>";
-  }
+  /* étiquettes de fin de courbe écartées les unes des autres pour rester lisibles */
+  var labs = S.map(function(s){ return {y:Y(s.v[n-1]), txt:s.nom+" "+btFmt(s.v[n-1]), col:s.col}; })
+              .sort(function(p,q){ return p.y - q.y; });
+  for(i=1;i<labs.length;i++) if(labs[i].y - labs[i-1].y < 15) labs[i].y = labs[i-1].y + 15;
+  var over = labs.length ? labs[labs.length-1].y - (mt+ph+4) : 0;
+  if(over > 0) labs.forEach(function(l){ l.y -= over; });
+  var lh = "", ph2 = "";
+  labs.forEach(function(l){
+    lh += "<text x='"+(ml+pw+9)+"' y='"+(l.y+4).toFixed(1)+"' font-size='12' font-weight='650' fill='"+l.col+"'>"+l.txt+"</text>";
+  });
+  S.slice().reverse().forEach(function(s){
+    ph2 += "<path d='"+path(s.v)+"' fill='none' stroke='"+s.col+"' stroke-width='2' stroke-linejoin='round'/>";
+  });
   var svg =
     "<svg id='btChart' viewBox='0 0 "+W+" "+H+"' preserveAspectRatio='xMidYMid meet' role='img' "+
-    "aria-label='Évolution comparée du portefeuille, base 100'>"+
+    "aria-label='Évolution comparée du portefeuille, base 100"+(logY ? ", échelle logarithmique" : "")+"'>"+
     gh + xt +
     "<line x1='"+ml+"' y1='"+(mt+ph)+"' x2='"+(ml+pw)+"' y2='"+(mt+ph)+"' stroke='var(--axis)' stroke-width='1'/>"+
-    "<path d='"+path(nC)+"' fill='none' stroke='var(--s3)' stroke-width='2' stroke-linejoin='round'/>"+
-    "<path d='"+path(nB)+"' fill='none' stroke='var(--s2)' stroke-width='2' stroke-linejoin='round'/>"+
-    "<path d='"+path(nA)+"' fill='none' stroke='var(--s1)' stroke-width='2' stroke-linejoin='round'/>"+
-    endLbl(nC,"var(--s3)","Conserver") + endLbl(nB,"var(--s2)","Origine") + endLbl(nA,"var(--s1)","Actuel")+
+    ph2 + lh +
     "<line id='btCross' x1='0' y1='"+mt+"' x2='0' y2='"+(mt+ph)+"' stroke='var(--axis)' stroke-width='1' style='display:none'/>"+
     "<rect id='btHit' x='"+ml+"' y='"+mt+"' width='"+pw+"' height='"+ph+"' fill='transparent'/>"+
     "</svg>";
-  BT_CH = {nA:nA,nB:nB,nC:nC,X:X,ml:ml,pw:pw,n:n,dates:R.dates};
+  BT_CH = {S:S, X:X, ml:ml, pw:pw, n:n, dates:R.dates, logY:logY};
   return svg;
 }
 function btWireHover(){
@@ -2192,12 +2598,12 @@ function btWireHover(){
     cross.setAttribute("x1", BT_CH.X(i)); cross.setAttribute("x2", BT_CH.X(i));
     cross.style.display = "";
     tt.style.display = "block";
-    tt.style.left = Math.min(ev.clientX+14, window.innerWidth-210)+"px";
+    tt.style.left = Math.min(ev.clientX+14, window.innerWidth-230)+"px";
     tt.style.top  = (ev.clientY-10)+"px";
     tt.innerHTML = "<b>"+new Date(BT_CH.dates[i]).toLocaleDateString("fr-FR")+"</b>"+
-      "<div class='r'><span>Actuel</span><span>"+num(BT_CH.nA[i],1)+"</span></div>"+
-      "<div class='r'><span>Origine</span><span>"+num(BT_CH.nB[i],1)+"</span></div>"+
-      "<div class='r'><span>Conserver</span><span>"+num(BT_CH.nC[i],1)+"</span></div>";
+      BT_CH.S.map(function(s){
+        return "<div class='r'><span>"+s.nom+"</span><span>"+num(s.v[i],1)+"</span></div>";
+      }).join("");
   }
   hit.addEventListener("mousemove", move);
   hit.addEventListener("mouseleave", function(){
@@ -2206,17 +2612,18 @@ function btWireHover(){
 }
 
 function btRender(R, alloc){
-  var A=R.runs.regime, B=R.runs.plain, C=R.hold;
-  var fA=A.eq[A.eq.length-1]/A.eq[0]-1, fB=B.eq[B.eq.length-1]/B.eq[0]-1, fC=C.eq[C.eq.length-1]/C.eq[0]-1;
-  function delta(x,ref){ var d=(x-ref)*100;
+  var L = R.list, C = R.hold;
+  function perf(e){ return e[e.length-1]/e[0]-1; }
+  var fC = perf(C.eq);
+  function delta(x){ var d=(x-fC)*100;
     return "<span class='tag "+(d>=0?"t-grn":"t-red")+"'>"+sgn(d,1)+" pts vs conserver</span>"; }
 
   var h = "";
-  h += "<div class='card'><h2>Résultat</h2><div class='heroes'>";
-  h += "<div class='hero'><div class='lbl'>Règles actuelles du cockpit</div><div class='val' style='color:var(--s1)'>"+
-       sgn(fA*100,1)+" %</div><div class='sub2'>"+delta(fA,fC)+"</div></div>";
-  h += "<div class='hero'><div class='lbl'>Grille d'origine, avec les ventes</div><div class='val' style='color:var(--s2)'>"+
-       sgn(fB*100,1)+" %</div><div class='sub2'>"+delta(fB,fC)+"</div></div>";
+  h += "<div class='card'><h2>Résultat — "+R.titre+"</h2><div class='heroes'>";
+  L.forEach(function(v){
+    h += "<div class='hero'><div class='lbl'>"+v.lbl+"</div><div class='val' style='color:"+v.col+"'>"+
+         sgn(perf(v.run.eq)*100,1)+" %</div><div class='sub2'>"+delta(perf(v.run.eq))+"</div></div>";
+  });
   h += "<div class='hero'><div class='lbl'>Ne rien faire</div><div class='val' style='color:var(--s3)'>"+
        sgn(fC*100,1)+" %</div><div class='sub2'>référence · "+alloc+" % BTC figé</div></div>";
   h += "</div>";
@@ -2225,45 +2632,57 @@ function btRender(R, alloc){
   h += "</div>";
 
   h += "<div class='card'><h2>Évolution du portefeuille (base 100)</h2>";
-  h += "<div class='legend'>"+
-       "<span class='lg'><span class='sw' style='background:var(--s1)'></span>Règles actuelles du cockpit (sans vente swing)</span>"+
-       "<span class='lg'><span class='sw' style='background:var(--s2)'></span>Grille d'origine (avec les ventes)</span>"+
-       "<span class='lg'><span class='sw' style='background:var(--s3)'></span>Ne rien faire</span></div>";
+  h += "<div class='legend'>";
+  L.forEach(function(v){ h += "<span class='lg'><span class='sw' style='background:"+v.col+"'></span>"+v.lbl+"</span>"; });
+  h += "<span class='lg'><span class='sw' style='background:var(--s3)'></span>Ne rien faire</span></div>";
   h += btDraw(R);
-  h += "<div class='hint'>Survole la courbe pour lire les trois valeurs à une date donnée.</div></div>";
+  h += "<div class='hint'>Survole la courbe pour lire les valeurs à une date donnée."+
+       (BT_CH.logY ? " Échelle logarithmique : un même écart vertical représente une même multiplication." : "")+"</div></div>";
 
   h += "<div class='card'><h2>Détail chiffré</h2><div class='scroll'><table><thead><tr>"+
        "<th>Variante</th><th style='text-align:right'>Performance</th>"+
        "<th style='text-align:right'>Pire perte</th><th style='text-align:right'>Transactions</th>"+
-       "<th style='text-align:right'>Écart vs conserver</th></tr></thead><tbody>";
-  [["Règles actuelles (sans vente swing)",fA,A.eq,A.trades.length,"var(--s1)"],
-   ["Grille d'origine (avec les ventes)",fB,B.eq,B.trades.length,"var(--s2)"],
-   ["Ne rien faire",fC,C.eq,0,"var(--s3)"]].forEach(function(r){
+       "<th style='text-align:right'>dont ventes</th><th style='text-align:right'>Écart vs conserver</th></tr></thead><tbody>";
+  L.map(function(v){ return [v.lbl, perf(v.run.eq), v.run.eq, v.run.trades, v.col]; })
+   .concat([["Ne rien faire", fC, C.eq, [], "var(--s3)"]]).forEach(function(r){
+    var ventes = r[3].filter(function(t){ return t.type === "vente"; }).length;
     h += "<tr><td><span class='sw' style='display:inline-block;background:"+r[4]+
          ";margin-right:8px;vertical-align:middle'></span>"+r[0]+"</td>"+
          "<td class='n'>"+sgn(r[1]*100,1)+" %</td>"+
          "<td class='n'>-"+num(maxDD(r[2]),1)+" %</td>"+
-         "<td class='n'>"+r[3]+"</td>"+
+         "<td class='n'>"+r[3].length+"</td>"+
+         "<td class='n'>"+ventes+"</td>"+
          "<td class='n'>"+sgn((r[1]-fC)*100,1)+" pts</td></tr>";
   });
   h += "</tbody></table></div>";
   h += "<div class='hint'>« Pire perte » = la plus forte chute depuis un sommet du portefeuille. Une grille qui gagne un peu moins mais chute beaucoup moins peut être le meilleur choix.</div></div>";
 
-  var ms = mean(R.fwd.sell), mb = mean(R.fwd.buy);
+  var F = R.fwd, M = R.fwdMain, base = {};
+  F.h.forEach(function(x){ base[x] = mean(F.all[x]); });
   h += "<div class='card'><h2>Les signaux avaient-ils une valeur prédictive ?</h2><div class='scroll'><table><thead><tr>"+
-       "<th>Signal émis</th><th style='text-align:right'>Occurrences</th>"+
-       "<th style='text-align:right'>Rendement moyen des 15 jours suivants</th>"+
-       "<th>Lecture</th></tr></thead><tbody>";
-  h += "<tr><td>Vente (score élevé)</td><td class='n'>"+R.fwd.sell.length+"</td><td class='n'>"+
-       (ms===null?"N/D":sgn(ms,2)+" %")+"</td><td style='font-size:13px'>"+
-       (ms===null?"—":(ms<0?"Le signal a bien précédé des baisses":"Le signal a précédé des hausses — il vendait trop tôt"))+"</td></tr>";
-  h += "<tr><td>Achat (score bas)</td><td class='n'>"+R.fwd.buy.length+"</td><td class='n'>"+
-       (mb===null?"N/D":sgn(mb,2)+" %")+"</td><td style='font-size:13px'>"+
-       (mb===null?"—":(mb>0?"Le signal a bien précédé des hausses":"Le signal a précédé des baisses — il achetait trop tôt"))+"</td></tr>";
+       "<th>Signal émis</th><th style='text-align:right'>Occurrences ("+R.pas+")</th>";
+  F.h.forEach(function(x){ h += "<th style='text-align:right'>Rendement moyen à "+x+" j</th>"; });
+  h += "<th>Lecture à "+M+" jours</th></tr></thead><tbody>";
+  R.fwdRows.forEach(function(row){
+    var m = mean(F[row.key][M]), b = base[M], lect;
+    if(m === null || b === null) lect = "—";
+    else if(row.dir === "sell")
+      lect = m < b ? "Suivi de rendements inférieurs à la moyenne : le signal avait de la valeur"
+                   : "Suivi de rendements supérieurs à la moyenne : il vendait trop tôt";
+    else
+      lect = m > b ? "Suivi de rendements supérieurs à la moyenne : le signal avait de la valeur"
+                   : "Suivi de rendements inférieurs à la moyenne : il achetait trop tôt";
+    h += "<tr><td>"+row.lbl+"</td><td class='n'>"+F[row.key][F.h[0]].length+"</td>";
+    F.h.forEach(function(x){ var v = mean(F[row.key][x]); h += "<td class='n'>"+(v===null ? "N/D" : sgn(v,2)+" %")+"</td>"; });
+    h += "<td style='font-size:13px'>"+lect+"</td></tr>";
+  });
+  h += "<tr><td class='lbl'>Tous les jours (référence)</td><td class='n'>"+F.all[F.h[0]].length+"</td>";
+  F.h.forEach(function(x){ h += "<td class='n'>"+(base[x]===null ? "N/D" : sgn(base[x],2)+" %")+"</td>"; });
+  h += "<td style='font-size:13px;color:var(--tx3)'>ce que le marché a fait en moyenne</td></tr>";
   h += "</tbody></table></div>";
-  h += "<div class='hint'>C'est le diagnostic le plus utile : il juge le signal lui-même, indépendamment des tailles de position. Un signal de vente suivi en moyenne de hausses est un signal à revoir, même si la stratégie globale gagne.</div></div>";
+  h += "<div class='hint'>C'est le diagnostic le plus utile : il juge le signal lui-même, indépendamment des tailles de position. Un signal de vente suivi de rendements supérieurs à la moyenne est un signal à revoir, même si la stratégie globale gagne. Les fenêtres se chevauchent : on lit un sens, pas une significativité statistique.</div></div>";
 
-  var T = A.trades.slice(-20).reverse();
+  var T = L[0].run.trades.slice(-20).reverse();
   h += "<div class='card'><h2>20 dernières transactions (règles actuelles)</h2><div class='scroll'><table><thead><tr>"+
        "<th>Date</th><th>Type</th><th style='text-align:right'>Prix</th>"+
        "<th style='text-align:right'>Score</th><th>Régime</th></tr></thead><tbody>";
@@ -2280,24 +2699,50 @@ function btRender(R, alloc){
   btWireHover();
 }
 
+/* Laisse le navigateur afficher l'état avant un long calcul */
+function btLater(fn){
+  return new Promise(function(res, rej){ setTimeout(function(){ try{ res(fn()); }catch(e){ rej(e); } }, 30); });
+}
+$("btHorizon").addEventListener("change", function(){ $("btScope").innerHTML = btScopeHtml($("btHorizon").value); });
+$("btScope").innerHTML = btScopeHtml($("btHorizon").value);
+
 $("btRun").addEventListener("click", function(){
   var b=$("btRun"); b.disabled=true; b.innerHTML='<span class="spin"></span> Calcul…';
-  $("btStatus").textContent = "récupération de l'historique…";
-  var days = parseInt($("btYears").value,10)*365;
+  function status(t){ $("btStatus").textContent = t; }
+  status("récupération de l'historique…");
+  var hz = $("btHorizon").value, yrs = $("btYears").value;
+  var days = yrs === "max" ? Infinity : parseInt(yrs,10)*365;
   var alloc = parseInt($("btAlloc").value,10);
   var fee = parseFloat($("btFee").value);
   var cool = parseInt($("btCool").value,10);
-  btFetchDaily(days).then(function(kl){
-    $("btStatus").textContent = kl.length+" bougies · simulation en cours…";
-    return new Promise(function(res){ setTimeout(function(){ res(simulate(kl,days,alloc,fee,cool)); },30); });
-  }).then(function(R){
+  var p;
+  if(hz === "position"){
+    p = cmFetch("PriceUSD,CapMrktCurUSD,CapMVRVCur").then(function(rows){
+      status(rows.length+" jours Coin Metrics · simulation en cours…");
+      return btLater(function(){ return simulatePosition(cmSeries(rows), days, alloc, fee, cool); });
+    });
+  } else if(hz === "swing-4h"){
+    p = btFetchKlines("4h", days*6 + 400, function(n){ status(n+" bougies 4 heures récupérées…"); })
+      .then(function(k4){
+        return btFetchKlines("1d", Infinity, function(n){ status(n+" jours récupérés…"); }).then(function(kd){
+          status(k4.length+" bougies 4 heures · simulation en cours…");
+          return btLater(function(){ return simulate4h(k4, kd, days, alloc, fee, cool); });
+        });
+      });
+  } else {
+    p = btFetchDaily(days).then(function(kl){
+      status(kl.length+" bougies · simulation en cours…");
+      return btLater(function(){ return simulate(kl, days, alloc, fee, cool); });
+    });
+  }
+  p.then(function(R){
     btRender(R, alloc);
-    $("btStatus").textContent = "";
+    status("");
     b.disabled=false; b.textContent="Relancer le backtest";
   }).catch(function(e){
-    $("btOut").innerHTML = "<div class='card'><div class='note warn'><b>Échec :</b> "+e.message+
+    $("btOut").innerHTML = "<div class='card'><div class='note warn'><b>Échec :</b> "+esc(e.message)+
       "<br>Si tu ouvres le cockpit depuis un fichier local, essaie plutôt l'adresse en ligne — certains navigateurs bloquent les requêtes depuis un fichier.</div></div>";
-    $("btStatus").textContent="";
+    status("");
     b.disabled=false; b.textContent="Réessayer";
   });
 });
@@ -2330,6 +2775,117 @@ $("tabBacktest").addEventListener("click", function(ev){ ev.preventDefault(); go
 window.addEventListener("hashchange", function(){ showView(); window.scrollTo(0,0); });
 window.addEventListener("popstate", function(){ showView(); });
 showView();
+
+/* =================== SAUVEGARDE DES SAISIES ===================
+   Export et import des saisies de cet appareil dans un fichier. Rien ne quitte le
+   navigateur sans action explicite : le fichier est créé sur l'appareil lui-même. */
+var SAVE_APP = "btc-cockpit", SAVE_V = 1;
+var H_FIELDS = {ts:"n", price:"n", sSwing:"n", sPos:"n", actSwing:"s", actPos:"s", dirSwing:"s", dirPos:"s",
+                regD:"s", regW:"s", invSwing:"n", invPos:"n", note:"s"};
+function exportData(now){
+  var champs = {};
+  KEYS.forEach(function(k){ champs[k] = $(k).value; });
+  return {app:SAVE_APP, v:SAVE_V, exporte:new Date(now).toISOString(), champs:champs, historique:histLoad()};
+}
+/* Lit une sauvegarde sans rien modifier. Un fichier qui ne vient pas du cockpit est
+   refusé en bloc ; dans un fichier valable, tout champ inattendu est écarté. */
+function parseImport(text){
+  var o;
+  try{ o = JSON.parse(text); }catch(e){ return {ok:false, err:"ce n'est pas une sauvegarde lisible"}; }
+  if(!o || o.app !== SAVE_APP) return {ok:false, err:"ce fichier ne vient pas du cockpit BTC"};
+  if(o.v !== SAVE_V) return {ok:false, err:"version de sauvegarde inconnue"};
+  var champs = {}, n = 0;
+  KEYS.forEach(function(k){
+    var v = o.champs ? o.champs[k] : undefined;
+    if(typeof v !== "string") return;
+    v = v.replace(/[<>]/g, "").slice(0, 60);
+    if(k === "mDate" && v !== "" && parseFrDate(v) === null) v = "";
+    champs[k] = v; n++;
+  });
+  var hist = [];
+  (Array.isArray(o.historique) ? o.historique : []).forEach(function(e){
+    if(!e || typeof e !== "object" || typeof e.ts !== "number" || !isFinite(e.ts) ||
+       typeof e.price !== "number" || !isFinite(e.price)) return;
+    var c = {};
+    for(var k in H_FIELDS){
+      var v = e[k];
+      if(H_FIELDS[k] === "n") c[k] = (typeof v === "number" && isFinite(v)) ? v : null;
+      else c[k] = (typeof v === "string") ? v.slice(0, 200) : (k === "note" ? "" : null);
+    }
+    hist.push(c);
+  });
+  if(!n && !hist.length) return {ok:false, err:"le fichier ne contient aucune saisie"};
+  return {ok:true, champs:champs, historique:hist, exporte:o.exporte, nChamps:n};
+}
+/* Remplace les champs par ceux du fichier ; fusionne l'historique (une analyse déjà
+   présente, au même horodatage, n'est pas dupliquée). Renvoie la taille finale. */
+function applyImport(p){
+  for(var k in p.champs) $(k).value = p.champs[k];
+  saveLocal();
+  var a = histLoad(), vus = {};
+  a.forEach(function(e){ vus[e.ts] = true; });
+  p.historique.forEach(function(e){ if(!vus[e.ts]){ a.push(e); vus[e.ts] = true; } });
+  a.sort(function(x,y){ return x.ts - y.ts; });
+  histSave(a);
+  renderManualAge();
+  if(D.kd) renderVerdict();
+  renderHist(); buildBlock();
+  return histLoad().length;
+}
+function xMsg(html){ $("xMsg").innerHTML = html; }
+var X_PENDING = null;
+function xPreview(text){
+  var p = parseImport(text);
+  X_PENDING = null;
+  if(!p.ok){ xMsg("<div class='note warn'><b>Import refusé :</b> "+esc(p.err)+". Rien n'a été modifié.</div>"); return; }
+  X_PENDING = p;
+  var d = (typeof p.exporte === "string" && isFinite(Date.parse(p.exporte))) ? new Date(p.exporte).toLocaleString("fr-FR") : "date inconnue";
+  xMsg("<div class='note'>Sauvegarde du <b>"+esc(d)+"</b> : "+p.nChamps+" champ(s) et "+p.historique.length+
+       " analyse(s). L'import <b>remplace</b> tes champs actuels et ajoute à ton historique les analyses qu'il n'a pas déjà.</div>"+
+       "<div class='bar' style='margin-top:10px'><button class='primary' id='xConfirm'>Confirmer l'import</button>"+
+       "<button id='xCancel'>Annuler</button></div>");
+  $("xConfirm").addEventListener("click", function(){
+    if(!X_PENDING) return;
+    var total = applyImport(X_PENDING);
+    X_PENDING = null;
+    $("xText").value = ""; $("xPasteBox").hidden = true;
+    xMsg("<div class='note'><span class='ok-msg'>Import terminé ✓</span> "+total+" analyse(s) dans l'historique.</div>");
+  });
+  $("xCancel").addEventListener("click", function(){ X_PENDING = null; xMsg(""); });
+}
+$("xExport").addEventListener("click", function(){
+  var now = Date.now(), txt = JSON.stringify(exportData(now), null, 2);
+  var nom = "btc-cockpit-sauvegarde-"+new Date(now).toISOString().slice(0,10)+".json";
+  var fait = false;
+  try{
+    if(window.Blob && window.URL && typeof URL.createObjectURL === "function"){
+      var url = URL.createObjectURL(new Blob([txt], {type:"application/json"}));
+      var a = document.createElement("a");
+      a.href = url; a.download = nom; a.style.display = "none";
+      document.body.appendChild(a); a.click();
+      setTimeout(function(){ URL.revokeObjectURL(url); if(a.parentNode) a.parentNode.removeChild(a); }, 1500);
+      fait = true;
+    }
+  }catch(e){ fait = false; }
+  if(fait){
+    xMsg("<div class='note'><span class='ok-msg'>Fichier créé ✓</span> "+esc(nom)+" — dans tes téléchargements. Garde-le pour toi.</div>");
+  } else {
+    $("xPasteBox").hidden = false; $("xText").value = txt;
+    xMsg("<div class='note warn'>Ce navigateur ne permet pas de créer le fichier : copie le texte ci-dessus et garde-le dans une note privée.</div>");
+  }
+});
+$("xImportBtn").addEventListener("click", function(){ $("xFile").value = ""; $("xFile").click(); });
+$("xFile").addEventListener("change", function(){
+  var f = $("xFile").files && $("xFile").files[0];
+  if(!f) return;
+  if(f.size > 2000000){ xMsg("<div class='note warn'><b>Import refusé :</b> fichier trop gros pour une sauvegarde du cockpit. Rien n'a été modifié.</div>"); return; }
+  var r = new FileReader();
+  r.onload = function(){ xPreview(String(r.result)); };
+  r.onerror = function(){ xMsg("<div class='note warn'><b>Lecture impossible</b> de ce fichier. Rien n'a été modifié.</div>"); };
+  r.readAsText(f);
+});
+$("xPaste").addEventListener("click", function(){ $("xPasteBox").hidden = !$("xPasteBox").hidden; });
+$("xCheck").addEventListener("click", function(){ xPreview($("xText").value); });
 
 /* ---------- Événements ---------- */
 $("refresh").addEventListener("click", loadAll);

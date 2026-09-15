@@ -389,6 +389,246 @@ ok(C.dureeTxt(2*86400000 + 3*3600000) === "il y a 2 j 3 h" && C.dureeTxt(5*36000
    C.dureeTxt(90000) === "il y a 2 min",
    "ancienneté de la visite écrite en clair");
 
+/* ================= 6. RÈGLES PARTAGÉES ET MVRV AUTOMATIQUE ================= */
+
+g("Étapes 2 et 3 de la chaîne — une seule fonction pour le cockpit et les backtests");
+var TR = C.tierRules;
+ok(C.TIERS[TR(9.2, "swing", "RANGE", true, 9.5, false).i].dir === "hold",
+   "SWING : un score de vente est ramené à « Rien », même avec divergence et MVRV extrême");
+ok(TR(9.2, "position", "TENDANCE", false, null, false).rule === "trend-block",
+   "POSITION en tendance sans divergence : vente bloquée");
+var trDiv = TR(9.2, "position", "TENDANCE", true, null, false);
+ok(trDiv.rule === "trend-div" && C.TIERS[trDiv.i].dir === "sell",
+   "POSITION en tendance avec divergence baissière confirmée : la prise de profit reste possible");
+ok(TR(9.2, "position", "TENDANCE", false, 9, false).rule === "trend-mvrv",
+   "exception MVRV : vente autorisée en tendance quand le sous-score MVRV atteint 8,5");
+ok(TR(9.2, "position", "TENDANCE", false, 8.4, false).rule === "trend-block",
+   "sous-score MVRV de 8,4 : pas d'exception");
+ok(TR(9.2, "position", "TENDANCE", false, 9, false, true).rule === "trend-block",
+   "variante de backtest « sans l'exception » : la même vente est bloquée");
+ok(TR(1.5, "swing", "TENDANCE", false, null, true).i === C.softer(C.tierFor(1.5)),
+   "achat en tendance baissière : réduit d'un cran");
+ok(TR(1.5, "swing", "TENDANCE", false, null, false).i === C.tierFor(1.5) &&
+   TR(9.2, "position", "RANGE", false, null, false).i === C.tierFor(9.2),
+   "hors tendance baissière et hors tendance, la table s'applique telle quelle");
+var dBloc = C.decide(9.2, "position", TEND, {}, {});
+ok(dBloc.capped && C.TIERS[dBloc.final].dir === "hold" && /aucune divergence baissière confirmée/.test(texte(dBloc)),
+   "le cockpit applique la règle de régime par tierRules, avec son explication en clair");
+
+g("MVRV Z-score calculé à partir de Coin Metrics");
+var zz = C.mvrvZSeries([100, 300], [1, 1.5]);
+/* jour 2 : moyenne 200, écart-type de population 100 ; capitalisation réalisée 300 ÷ 1,5 = 200 ;
+   Z = (300 − 200) ÷ 100 = 1 */
+ok(zz[0] === null && near(zz[1], 1), "exemple calculé à la main : Z = 1");
+ok(C.mvrvZSeries([5,5,5], [2,2,2]).every(function(v){ return v === null; }),
+   "capitalisation immobile : écart-type nul, Z = N/D, jamais une division par zéro");
+var zUn = C.mvrvZSeries([100,200,300,400], [1,1,1,1]);
+ok(near(zUn[1], 0) && near(zUn[3], 0), "ratio MVRV de 1 : capitalisation réalisée = capitalisation de marché, Z = 0");
+var zTrou = C.mvrvZSeries([100, NaN, 300], [1, 1, 1.5]);
+ok(zTrou[1] === null && near(zTrou[2], 1), "jour sans donnée : N/D, et il ne fausse pas les jours suivants");
+var mcS = [], mvS = [];
+for(var i=0;i<400;i++){ mcS.push(1e9*(1 + i/50 + Math.sin(i/9))); mvS.push(1.2 + Math.sin(i/13)); }
+var zLong = C.mvrvZSeries(mcS, mvS), zCourt = C.mvrvZSeries(mcS.slice(0,250), mvS.slice(0,250)), memeZ = true;
+for(var i=0;i<250;i++) if(!(zLong[i] === zCourt[i] || near(zLong[i], zCourt[i], 1e-12))) memeZ = false;
+ok(memeZ, "aucune lecture de l'avenir : couper la fin de la série ne change aucun Z-score passé");
+
+var lignesCM = [
+  {time:"2026-09-13T00:00:00.000000000Z", CapMrktCurUSD:"100", CapMVRVCur:"1",   SplyCur:"10", PriceUSD:"10"},
+  {time:"2026-09-14T00:00:00.000000000Z", CapMrktCurUSD:"300", CapMVRVCur:"1.5", SplyCur:"10", PriceUSD:"30"}];
+var dernier = C.cmLatest(C.cmSeries(lignesCM));
+ok(dernier && near(dernier.z, 1) && dernier.t === Date.UTC(2026,8,14) && near(dernier.real, 20),
+   "dernière valeur Coin Metrics : Z, date de la donnée, prix réalisé = capitalisation réalisée ÷ offre");
+var vide = C.cmSeries([{time:"pas une date"}, {time:"2026-09-14T00:00:00Z", CapMrktCurUSD:""}]);
+ok(vide.t.length === 1 && isNaN(vide.mc[0]), "ligne sans date écartée ; valeur absente = NaN, jamais 0");
+var maint = Date.now();
+ok(C.cmFresh({t:maint - 2*86400000, z:1}, maint) && !C.cmFresh({t:maint - 6*86400000, z:1}, maint) &&
+   !C.cmFresh({err:"HTTP 500"}, maint) && !C.cmFresh(undefined, maint),
+   "donnée Coin Metrics de plus de 4 jours, ou en échec : plus utilisée");
+
+C.D.cm = {t:maint - 86400000, z:5};
+C.__set("mMvrv", "1,0"); C.__set("mDate", C.todayFr());
+ok(C.mvrvSource(maint).src === "cm" && near(C.mvrvSource(maint).z, 5),
+   "Coin Metrics frais : il prime sur la saisie de secours");
+C.D.cm = {err:"HTTP 500"};
+var secours = C.mvrvSource(maint);
+ok(secours.src === "manuel" && near(secours.z, 1) && /injoignable/.test(secours.raw),
+   "Coin Metrics injoignable : la saisie de secours fraîche est utilisée, et c'est dit");
+C.__set("mDate", "");
+ok(C.mvrvSource(maint).z === null && /PÉRIMÉ/.test(C.mvrvSource(maint).raw),
+   "Coin Metrics injoignable et secours sans date : N/D, pas une valeur par défaut");
+C.__set("mMvrv", ""); delete C.D.cm;
+
+g("Bougies hebdomadaires reconstituées");
+var lundi = Date.UTC(2026,0,5), tJ = [], cJ = [];
+for(var i=0;i<17;i++){ tJ.push(lundi + i*86400000); cJ.push(100 + (i === 3 ? 50 : i)); }
+var Wk = C.weeklyFromDaily(tJ, cJ);
+ok(Wk.c.length === 2 && Wk.t[0] === lundi && Wk.c[0] === 106 && Wk.h[0] === 150 && Wk.l[0] === 100,
+   "semaine du lundi au dimanche : clôture du dimanche, haut et bas = extrêmes de la semaine");
+ok(Wk.at[5] === -1 && Wk.at[6] === 0 && Wk.at[13] === 1 && Wk.at[16] === 1,
+   "une semaine n'est lisible qu'à partir de son dimanche : la semaine en cours n'existe pas encore");
+
+/* ================= 7. BACKTESTS SWING 4 HEURES ET POSITION ================= */
+
+function prefixe(a, b, min){
+  if(a.length < min) return false;
+  for(var i=0;i<a.length;i++) if(!near(a[i], b[i], 1e-12)) return false;
+  return true;
+}
+
+g("Une seule copie, aussi pour les nouveaux moteurs");
+["tierRules","mvrvZSeries","cmSeries","weeklyFromDaily","btExec","weighted","agg","mvrvScore",
+ "simulate4h","simulatePosition"].forEach(function(f){
+  var n = source.split("function " + f + "(").length - 1;
+  ok(n === 1, "« " + f + " » n'existe qu'une fois dans la page (trouvé " + n + " fois)");
+});
+ok(!/w:\s*(50|30|20|35|25|40)\b/.test(source),
+   "les pondérations des scores ne sont écrites qu'à un seul endroit (W_SWING, W_POS)");
+ok(source.indexOf("close[t]<e50[t]") < 0,
+   "le backtest swing n'a plus sa propre définition de la tendance baissière");
+var appels = source.split("tierRules(").length - 2;
+ok(appels >= 5, "tierRules est appelée par le cockpit et par les trois backtests (" + appels + " appels)");
+
+/* Bougies 4 heures et journalières SYNTHÉTIQUES et cohérentes entre elles :
+   chaque journée est faite de ses six bougies 4 heures. Ce n'est pas un cours réel. */
+function h4Synth(nd, seed, derive){
+  var k4 = [], kd = [], s = seed, px = 20000, t0 = Date.UTC(2021,0,1);
+  for(var d=0; d<nd; d++){
+    var o = px, hi = px, lo = px;
+    for(var b=0; b<6; b++){
+      s = (s * 1103515245 + 12345) % 2147483648;
+      var ouv = px; px = px * (1 + ((s/2147483648) - 0.5) * 0.02 + derive);
+      var t = t0 + d*86400000 + b*14400000, h = Math.max(ouv,px)*1.003, l = Math.min(ouv,px)*0.997;
+      k4.push([t, String(ouv), String(h), String(l), String(px), "10", t + 14399999]);
+      hi = Math.max(hi, h); lo = Math.min(lo, l);
+    }
+    var td = t0 + d*86400000;
+    kd.push([td, String(o), String(hi), String(lo), String(px), "60", td + 86399999]);
+  }
+  return {k4:k4, kd:kd};
+}
+
+g("Backtest SWING 4 heures — simulation");
+var HS = h4Synth(420, 99, 0.0008);
+var R4 = C.simulate4h(HS.k4, HS.kd, 60, 70, 0.1, 7);
+var dBon = true;
+for(var j=0;j<HS.k4.length;j++){
+  var dd = R4.dOf[j];
+  if(dd >= 0 && HS.kd[dd][6] > HS.k4[j][6]) dBon = false;
+  if(dd+1 < HS.kd.length && HS.kd[dd+1][6] <= HS.k4[j][6]) dBon = false;
+}
+ok(dBon, "à chaque clôture 4 heures, la bougie journalière lue est la dernière close — jamais celle du jour en cours");
+ok(R4.from === HS.k4[HS.k4.length - 360][0], "la période testée est bien la bonne (60 jours = 360 bougies 4 heures)");
+var ouv4 = {};
+HS.k4.forEach(function(k){ ouv4[k[0]] = parseFloat(k[1]); });
+var tr4 = R4.runs.regime.trades.concat(R4.runs.plain.trades);
+ok(tr4.length > 0 && tr4.every(function(t){ return near(t.px, ouv4[t.t], 1e-6); }),
+   "chaque ordre est exécuté à l'ouverture de la bougie 4 heures suivante");
+ok(R4.runs.plain.trades.some(function(t){ return t.type === "vente"; }),
+   "la grille d'origine vend sur cette hausse — le test suivant a de quoi mordre");
+ok(R4.runs.regime.trades.every(function(t){ return t.type !== "vente"; }),
+   "règles actuelles : aucune vente en SWING 4 heures non plus");
+ok(espaces(R4.runs.regime.trades, 7) && espaces(R4.runs.plain.trades, 7),
+   "délai de carence compté en jours réels, pas en bougies");
+var coupe4 = HS.k4.length - 300, tCoupe = HS.k4[coupe4][0];
+var R4c = C.simulate4h(HS.k4.slice(0, coupe4), HS.kd.filter(function(k){ return k[6] < tCoupe; }), 10, 70, 0.1, 7);
+var passe4 = R4c.from === R4.from && prefixe(R4c.hold.eq.slice(0,-1), R4.hold.eq, 5) &&
+             prefixe(R4c.runs.regime.eq.slice(0,-1), R4.runs.regime.eq, 5) &&
+             prefixe(R4c.runs.plain.eq.slice(0,-1), R4.runs.plain.eq, 5);
+for(var j=0; j<coupe4-1; j++) if(R4c.scores[j] !== R4.scores[j]) passe4 = false;
+ok(passe4, "aucune triche avec le futur : retirer les 50 derniers jours ne change ni un score ni un jour antérieur");
+
+var eq4 = 0;
+[2200, 2350, 2500].forEach(function(j){
+  C.D = {k4: HS.k4.slice(0, j+1), kd: HS.kd.slice(0, R4.dOf[j]+1), tick:{lastPrice: HS.k4[j][4]}};
+  C.computeVerdict();
+  if(C.D.verdict.ok && near(C.D.verdict.swing.score, R4.scores[j], 1e-9)) eq4++;
+});
+ok(eq4 === 3, "le backtest 4 heures note chaque bougie EXACTEMENT comme le cockpit (" + eq4 + "/3 identiques)");
+C.D = {};
+
+/* Série Coin Metrics SYNTHÉTIQUE : calme, puis bulle, puis krach. Ce n'est pas le vrai
+   bitcoin : elle sert à vérifier la mécanique, pas la valeur de la grille. */
+function cmSynth(n){
+  var S = {t:[], px:[], mc:[], mv:[], sply:[]}, s = 4321, px = 1000, rc = 1000;
+  for(var i=0;i<n;i++){
+    s = (s * 1103515245 + 12345) % 2147483648;
+    var derive = (i > 900 && i < 1100) ? 0.009 : (i >= 1100 && i < 1250) ? -0.008 : 0.0003;
+    px = px * (1 + derive + ((s/2147483648) - 0.5) * 0.03);
+    rc = rc*0.995 + px*0.005;
+    S.t.push(Date.UTC(2014,0,6) + i*86400000); S.px.push(px);
+    S.mc.push(px*1e6); S.mv.push(px/rc); S.sply.push(1e6);
+  }
+  return S;
+}
+
+g("Backtest POSITION — simulation");
+var SP = cmSynth(1500);
+var RP = C.simulatePosition(SP, 1000, 70, 0.1, 7);
+ok(RP.from === SP.t[500], "la simulation démarre après la chauffe des indicateurs et de l'hebdomadaire");
+ok(near(RP.hold.eq[0], 1, 1e-9) && RP.list.length === 4, "quatre variantes et une référence, sur la même base");
+var pxJour = {}, trP = [];
+SP.t.forEach(function(t, i){ pxJour[t] = SP.px[i]; });
+RP.list.forEach(function(v){ trP = trP.concat(v.run.trades); });
+ok(trP.length > 0 && trP.every(function(t){ return near(t.px, pxJour[t.t], 1e-9); }),
+   "chaque ordre est exécuté au prix du lendemain, jamais au prix qui a servi à décider");
+ok(RP.runs.brut.trades.some(function(t){ return t.type === "vente"; }),
+   "la grille brute vend pendant la bulle — les variantes ont de quoi différer");
+ok(RP.runs.sansVente.trades.every(function(t){ return t.type !== "vente"; }),
+   "variante « sans aucune vente » : aucune vente");
+ok(RP.list.every(function(v){ return espaces(v.run.trades, 7); }), "délai de carence respecté sur les quatre variantes");
+var SPc = {t:SP.t.slice(0,1300), px:SP.px.slice(0,1300), mc:SP.mc.slice(0,1300), mv:SP.mv.slice(0,1300), sply:SP.sply.slice(0,1300)};
+var RPc = C.simulatePosition(SPc, 800, 70, 0.1, 7);
+var passeP = RPc.from === RP.from && memePasse(RPc.hold.eq, RP.hold.eq);
+RP.list.forEach(function(v, i){ if(!memePasse(RPc.list[i].run.eq, v.run.eq)) passeP = false; });
+ok(passeP, "aucune triche avec le futur : retirer les 200 derniers jours ne change aucun jour antérieur, MVRV compris");
+
+var zP = C.mvrvZSeries(SP.mc, SP.mv), eqP = 0;
+[600, 900, 1400].forEach(function(t){
+  var tj = SP.t.slice(0, t+1), cj = SP.px.slice(0, t+1);
+  var kdP = tj.map(function(x, i){ return [x, String(cj[i]), String(cj[i]), String(cj[i]), String(cj[i]), "1", x + 86399999]; });
+  var Wt = C.weeklyFromDaily(tj, cj);
+  var kwP = Wt.t.map(function(x, i){ return [x, String(Wt.c[i]), String(Wt.h[i]), String(Wt.l[i]), String(Wt.c[i]), "1", x + 7*86400000 - 1]; });
+  C.D = {kd:kdP, kw:kwP, tick:{lastPrice:String(cj[t])}};
+  C.__set("mMvrv", String(zP[t])); C.__set("mDate", C.todayFr());
+  C.computeVerdict();
+  var v = C.D.verdict;
+  if(v.ok && v.position.W === 100 && near(v.position.score, RP.scores[t], 1e-9)) eqP++;
+});
+ok(eqP === 3, "le backtest POSITION note chaque jour EXACTEMENT comme le cockpit, MVRV compris (" + eqP + "/3 identiques)");
+C.D = {}; C.__set("mMvrv", ""); C.__set("mDate", "");
+
+/* ================= 8. SAUVEGARDE DES SAISIES ================= */
+
+g("Export et import des saisies");
+C.__set("fPos", "35"); C.__set("fPru", "62000"); C.__set("mDate", "10/09/2026");
+var sauv = C.exportData(Date.UTC(2026,8,15));
+ok(sauv.app === "btc-cockpit" && sauv.v === 1 && sauv.champs.fPos === "35" && Array.isArray(sauv.historique),
+   "export : application, version, champs et historique");
+var relu = C.parseImport(JSON.stringify(sauv));
+ok(relu.ok && relu.champs.fPru === "62000" && relu.champs.mDate === "10/09/2026" && relu.nChamps === C.KEYS.length,
+   "une sauvegarde exportée se relit sans perte");
+ok(!C.parseImport("pas du json").ok && !C.parseImport('{"app":"autre","v":1}').ok &&
+   !C.parseImport('{"app":"btc-cockpit","v":99,"champs":{"fPos":"1"}}').ok &&
+   !C.parseImport('{"app":"btc-cockpit","v":1}').ok,
+   "fichier illisible, étranger, de version inconnue ou vide : refusé en bloc");
+var piege = C.parseImport(JSON.stringify({app:"btc-cockpit", v:1,
+  champs:{fPos:"<img src=x onerror=alert(1)>", mDate:"<script>", inconnu:"x"},
+  historique:[{ts:1, price:2, note:"<b>ok</b>", actSwing:5}, {ts:"x", price:1}, null]}));
+ok(piege.ok && piege.champs.fPos.indexOf("<") < 0 && piege.champs.mDate === "" && !("inconnu" in piege.champs),
+   "champs importés nettoyés : balises retirées, date illisible écartée, champ inconnu ignoré");
+ok(piege.historique.length === 1 && piege.historique[0].actSwing === null,
+   "historique importé : entrées invalides écartées, types vérifiés champ par champ");
+ok(C.esc("<b>\"x\"&'</b>") === "&lt;b&gt;&quot;x&quot;&amp;&#39;&lt;/b&gt;",
+   "tout texte saisi ou importé est échappé avant d'être affiché");
+C.localStorage.clear();
+C.histSave([{ts:10, price:1}]);
+var total = C.applyImport(C.parseImport(JSON.stringify({app:"btc-cockpit", v:1, champs:{fPos:"40"},
+  historique:[{ts:10, price:1}, {ts:5, price:2}]})));
+ok(total === 2 && C.histLoad()[0].ts === 5 && C.__els.fPos.value === "40",
+   "import : champ remplacé, historique fusionné sans doublon et remis dans l'ordre");
+C.localStorage.clear();
+["fPos","fPru","mDate"].forEach(function(k){ C.__set(k, ""); });
+
 /* ================= RÉSULTAT ================= */
 console.log("");
 console.log("Tests du moteur : " + pass + " réussis, " + fail.length + " échoués");
