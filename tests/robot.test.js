@@ -100,6 +100,37 @@ try{ robot.analyser(sandbox.load("index.html"), court, Date.now()); }catch(e){ e
 ok(erreur !== null && /insuffisant/.test(erreur),
    "historique trop court : le robot échoue franchement au lieu de calculer sur trop peu de bougies");
 
+/* ---------- MVRV : changement de bande confirmé ----------
+   Le Z-score lui-même est testé dans engine.test.js ; ici on impose la série de
+   Z-scores pour vérifier ce que le robot en fait. Valeurs SYNTHÉTIQUES. */
+var avantHier = AUJ - 2*JOUR, nJ = 60, lignes = [], zCible = [];
+for(var i=0;i<nJ;i++){
+  lignes.push({ time: new Date(avantHier - (nJ-1-i)*JOUR).toISOString(), CapMrktCurUSD:"1", CapMVRVCur:"1" });
+  zCible.push(i < nJ-7 ? 3.5 : 4.5);
+}
+var CZ = sandbox.load("index.html");
+CZ.mvrvZSeries = function(){ return zCible; };
+var mv1 = robot.etatMvrv(CZ, { rows:lignes }, Date.now());
+ok(mv1.evenement && mv1.evenement.fort && /neutre haut » → <b>« surachat/.test(mv1.evenement.txt) && /7 jours/.test(mv1.evenement.txt),
+   "passage en surachat tenu 7 jours, lu sur la journée d'avant-hier : alerte « à regarder »");
+ok(/surachat/.test(mv1.resume) && /Z 4,50/.test(mv1.resume), "le résumé MVRV donne le Z-score et sa bande");
+zCible[nJ-1] = 3.5;
+ok(!robot.etatMvrv(CZ, { rows:lignes }, Date.now()).evenement,
+   "nouvelle bande qui ne tient pas 7 jours : aucune alerte");
+zCible[nJ-1] = 4.5;
+var mvRetard = robot.etatMvrv(CZ, { rows:lignes.slice(0, -1) }, Date.now());
+ok(mvRetard.evenement && !mvRetard.evenement.fort && /pas encore publiée/.test(mvRetard.evenement.txt),
+   "journée d'avant-hier pas encore publiée : « MVRV non vérifié », pas un silence trompeur");
+var panneCM = jeu(); panneCM.cm = { err:"HTTP 503" };
+var aPanne = robot.analyser(sandbox.load("index.html"), panneCM, Date.now());
+ok(aPanne.evenements.some(function(e){ return !e.fort && /MVRV non vérifié/.test(e.txt) && /injoignable/.test(e.txt); }),
+   "Coin Metrics injoignable : le robot le dit, et le reste de l'analyse continue");
+ok(!!mv1.evenement &&
+   robot.message(CZ, { evenements:[mv1.evenement], T:AUJ-JOUR, lo:1, hi:2, apres:{px:1}, mvrv:mv1 }).corps.indexOf("<") < 0,
+   "l'alerte MVRV part sans balise HTML");
+ok(!!mv1.evenement && !/POSITION|[Vv]ente/.test(mv1.evenement.txt),
+   "une alerte MVRV rapporte une bande, jamais un palier POSITION ni une vente");
+
 console.log("");
 console.log("Tests du robot : " + pass + " réussis, " + fail.length + " échoués");
 if(fail.length){

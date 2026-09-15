@@ -597,6 +597,28 @@ var zP = C.mvrvZSeries(SP.mc, SP.mv), eqP = 0;
 ok(eqP === 3, "le backtest POSITION note chaque jour EXACTEMENT comme le cockpit, MVRV compris (" + eqP + "/3 identiques)");
 C.D = {}; C.__set("mMvrv", ""); C.__set("mDate", "");
 
+g("Bandes MVRV et changement de bande confirmé");
+ok(C.mvrvBand(-0.1) === 0 && C.mvrvBand(0) === 1 && C.mvrvBand(1.99) === 1 && C.mvrvBand(2) === 2 &&
+   C.mvrvBand(4) === 3 && C.mvrvBand(7) === 4 && C.mvrvBand(null) === null && C.mvrvBand(NaN) === null,
+   "bandes du §8 : sous 0, 0 à 2, 2 à 4, 4 à 7, à partir de 7 ; N/D reste N/D");
+ok(C.MVRV_TENUE === 7, "la tenue exigée avant de signaler une nouvelle bande est de 7 jours");
+var tB = [], zB = [], J0 = Date.UTC(2026,0,1);
+for(var i=0;i<40;i++){ tB.push(J0 + i*86400000); zB.push(i < 10 ? 1.5 : 2.5); }
+var chB = C.mvrvBandChange(tB, zB, tB[16]);
+ok(chB && chB.avant === 1 && chB.apres === 2 && !chB.fort,
+   "nouvelle bande tenue 7 jours : changement signalé le 7e jour, « à noter » pour une bande neutre");
+function nbChangements(z){ var n = 0; for(var i=0;i<tB.length;i++){ var c = C.mvrvBandChange(tB, z, tB[i]); if(c && !c.manque) n++; } return n; }
+ok(nbChangements(zB) === 1, "un changement n'est signalé qu'une seule fois");
+var zAR = zB.map(function(v, i){ return (i >= 10 && i < 14) ? 2.5 : 1.5; });
+ok(nbChangements(zAR) === 0,
+   "aller-retour de 4 jours autour d'une limite : aucune alerte, ni à l'aller ni au retour");
+var zHaut = zB.map(function(v, i){ return i < 10 ? 3 : 7.5; });
+var chHaut = C.mvrvBandChange(tB, zHaut, tB[16]);
+ok(!!chHaut && chHaut.fort === true, "entrée en zone de sommet historique : « à regarder »");
+ok(C.mvrvBandChange(tB, zB, J0 - 86400000).manque === true, "journée absente de la série : dit comme telle, jamais une absence de changement");
+ok(C.mvrvBandChange(tB.slice(0,8), zB.slice(0,8), tB[7]) === null,
+   "première bande atteinte : ce n'est pas un changement, rien n'est signalé");
+
 /* ================= 8. SAUVEGARDE DES SAISIES ================= */
 
 g("Export et import des saisies");

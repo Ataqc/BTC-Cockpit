@@ -874,6 +874,44 @@ function mvrvZSeries(mc, mvrv){
   return out;
 }
 
+/* Bandes du MVRV Z-score (§8 du briefing). Une seule définition, lue par le cockpit
+   et par le robot d'alerte. */
+var MVRV_BANDS = [
+  {max:0,        lbl:"sous-évalué"},
+  {max:2,        lbl:"neutre bas"},
+  {max:4,        lbl:"neutre haut"},
+  {max:7,        lbl:"surachat"},
+  {max:Infinity, lbl:"sommet historique"}
+];
+function mvrvBand(z){
+  if(z === null || z === undefined || isNaN(z)) return null;
+  for(var i=0;i<MVRV_BANDS.length;i++) if(z < MVRV_BANDS[i].max) return i;
+  return MVRV_BANDS.length - 1;
+}
+/* Changement de bande CONFIRMÉ. Une bande n'est « atteinte » qu'après avoir tenu
+   MVRV_TENUE jours d'affilée ; tant qu'aucune nouvelle bande n'a tenu, la bande
+   atteinte reste la précédente. Sur l'historique réel depuis 2014, sans cette tenue,
+   87 des 143 changements repartaient dans la bande quittée en moins d'une semaine.
+   Un aller-retour trop court ne produit donc rien, et un changement n'est signalé
+   qu'une fois : le jour où la nouvelle bande atteint sa tenue.
+   jour = minuit UTC de la journée lue. Renvoie null, {manque:true} si la journée
+   n'est pas dans la série, ou le changement. */
+var MVRV_TENUE = 7;
+function mvrvBandChange(t, z, jour){
+  var i = t.indexOf(jour);
+  if(i < 0) return {manque:true};
+  var atteinte = null, avant = null, suite = 0, der = null;
+  for(var k=0;k<=i;k++){
+    var b = mvrvBand(z[k]);
+    suite = b === null ? 0 : (b === der ? suite + 1 : 1);
+    der = b;
+    avant = atteinte;
+    if(suite >= MVRV_TENUE) atteinte = b;
+  }
+  if(avant === null || atteinte === avant) return null;
+  return {avant:avant, apres:atteinte, z:z[i], t:jour, fort: atteinte === 0 || atteinte >= 3};
+}
+
 var CM_API = "https://community-api.coinmetrics.io/v4/timeseries/asset-metrics";
 var CM_MAX_AGE = 4;   /* jours. Coin Metrics publie chaque jour la journée de la veille. */
 var CM_KEY = "btc_cm";
@@ -1873,7 +1911,7 @@ function renderCm(){
   var box = $("cmBox"), c = D.cm;
   if(!box) return;
   if(cmFresh(c, Date.now()))
-    box.innerHTML = "<div class='note'><b>MVRV Z-score "+num(c.z,2)+"</b> · ratio MVRV "+num(c.mvrv,2)+
+    box.innerHTML = "<div class='note'><b>MVRV Z-score "+num(c.z,2)+"</b> ("+MVRV_BANDS[mvrvBand(c.z)].lbl+") · ratio MVRV "+num(c.mvrv,2)+
       " · prix réalisé "+(c.real!==null ? num(c.real,0)+" $" : "N/D")+" — Coin Metrics, donnée du "+
       dateFrUTC(c.t)+". Calculés automatiquement : les deux champs de secours ci-dessous ne sont pas utilisés.</div>";
   else if(c)
@@ -2067,7 +2105,7 @@ function buildBlock(){
   L.push("");
   L.push("--- ON-CHAIN (Coin Metrics, calcul automatique quotidien) ---");
   if(cmFresh(D.cm, now)){
-    L.push("MVRV Z-score : "+num(D.cm.z,2)+"  (donnée du "+dateFrUTC(D.cm.t)+" · Z = (capitalisation − capitalisation réalisée) ÷ écart-type de la capitalisation depuis 2010)");
+    L.push("MVRV Z-score : "+num(D.cm.z,2)+" — bande « "+MVRV_BANDS[mvrvBand(D.cm.z)].lbl+" »  (donnée du "+dateFrUTC(D.cm.t)+" · Z = (capitalisation − capitalisation réalisée) ÷ écart-type de la capitalisation depuis 2010)");
     L.push("Ratio MVRV : "+num(D.cm.mvrv,2));
     L.push("Prix réalisé : "+(D.cm.real!==null ? num(D.cm.real,0)+" $" : "N/D")+"  (même date)");
   } else {

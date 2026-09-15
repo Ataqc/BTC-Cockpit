@@ -24,7 +24,7 @@ faire.
 
 ## Ce que la pastille verte en haut veut dire
 
-À chaque modification envoyée sur GitHub, 279 vérifications automatiques
+À chaque modification envoyée sur GitHub, 294 vérifications automatiques
 s'exécutent :
 
 - **le moteur de calcul** — chaque indicateur est confronté à une série dont on
@@ -42,7 +42,7 @@ s'exécutent :
   remplacé sans ta confirmation ;
 - **le robot d'alerte** — sur des bougies synthétiques : il compare la bonne
   période, ne signale jamais de palier POSITION ni de vente, et alerte vraiment
-  quand le prix s'effondre ;
+  quand le prix s'effondre ; une bande MVRV n'est signalée qu'une fois tenue 7 jours ;
 - **la page entière** — elle est chargée dans un navigateur simulé, avec un faux
   réseau, et on vérifie que tout s'affiche, que les scores restent dans l'échelle
   0-10, que les onglets basculent sans rien recharger, que le backtest tourne
@@ -103,7 +103,7 @@ marché durablement baissier.
 - **Sur le téléphone** : un robot tourne chaque jour sur GitHub, peu après la
   clôture de 00:00 UTC, et n'envoie une notification (via ntfy) que si quelque
   chose a changé : palier swing candidat, régime, divergence, EMA 200, support ou
-  résistance. Les serveurs GitHub sont aux États-Unis, où Binance bloque ses
+  résistance, et changement de bande MVRV tenu 7 jours. Les serveurs GitHub sont aux États-Unis, où Binance bloque ses
   dérivés : le robot ne lit ni funding ni open interest, et ne voit aucune donnée
   personnelle. **Il n'annonce jamais de vente.** Chaque lundi, un message discret
   confirme qu'il tourne ; s'il échoue, il le dit.

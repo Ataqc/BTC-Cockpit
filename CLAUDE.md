@@ -434,7 +434,7 @@ qu'ils sont dans l'onglet Backtest et nulle part ailleurs.
     minimal simulé. Les tests appellent donc les **vraies** fonctions des vraies
     pages : ne recopie jamais une formule dans un test, un test qui recopie ce
     qu'il vérifie ne vérifie rien.
-  - `tests/engine.test.js` (174 vérifications, zéro dépendance) : identités
+  - `tests/engine.test.js` (182 vérifications, zéro dépendance) : identités
     mathématiques (moyenne mobile sur série constante = la constante, RSI sur série
     croissante = 100, décroissante = 0, plate = 50), chaîne de décision, péremption,
     **unicité des formules** (chaque indicateur défini une seule fois dans la page)
@@ -457,10 +457,13 @@ qu'ils sont dans l'onglet Backtest et nulle part ailleurs.
     disponible dans une seconde page simulée (MVRV sur 100 % du barème, bloc, cache
     du jour), backtests POSITION et 4 H complets, export puis import confirmé,
     réglages du backtest dans leur onglet.
-  - `tests/robot.test.js` (17 vérifications, zéro dépendance) : période comparée
+  - `tests/robot.test.js` (24 vérifications, zéro dépendance) : période comparée
     par le robot d'alerte, bougie en cours écartée, aucun palier POSITION ni
     aucune vente, alerte réelle sur une chute synthétique, notification sans
-    balise HTML, échec franc si l'historique est trop court.
+    balise HTML, échec franc si l'historique est trop court. Depuis le
+    15 septembre 2026 : bande MVRV tenue 7 jours → alerte ; bande qui ne tient pas
+    ou aller-retour → rien ; journée non publiée ou Coin Metrics injoignable →
+    « MVRV non vérifié ». Ramener la tenue à 1 jour fait rougir la suite.
   - **Ce que les tests ne voient pas : la mise en page.** jsdom ne calcule aucune
     largeur. Toute modification d'affichage se vérifie dans un vrai navigateur à
     **390, 768, 1024 et 1280 px** : aucun tableau ne doit dépasser de sa carte, et
@@ -518,6 +521,7 @@ qu'ils sont dans l'onglet Backtest et nulle part ailleurs.
   §9) ; sauvegarde et restauration des saisies (§6) ; onglet Backtest réparé
 - **MVRV relatif testé et écarté** le 15 septembre 2026 (§14) : aucune règle modifiée
 - **Notifications iPhone activées** le 15 septembre 2026 (§15)
+- **Alerte de changement de bande MVRV** ajoutée au robot le 15 septembre 2026 (§15)
 
 ---
 
@@ -763,8 +767,7 @@ de trouver un gagnant par hasard.
 2. ~~Backtest 4H~~ — **fait le 15 septembre 2026**, ci-dessus.
 3. ~~Backtest POSITION~~ — **fait le 15 septembre 2026**, ci-dessus.
 4. ~~Bandes MVRV relatives~~ — **testées et écartées le 15 septembre 2026**, ci-dessus.
-5. **Robot d'alerte et MVRV** : le robot pourrait lire Coin Metrics et signaler un
-   changement de bande MVRV, qui ne dépend d'aucune donnée personnelle.
+5. ~~Robot d'alerte et MVRV~~ — **fait le 15 septembre 2026** (§15).
 
 ---
 
@@ -788,13 +791,29 @@ fonction que le bilan de visite. Aucune mémoire entre deux passages, aucun comm
 | `fapi.binance.com` (funding, open interest) | 451 — bloqué |
 | `api.alternative.me` | 200 |
 | `ntfy.sh` | en service |
+| `community-api.coinmetrics.io` | pas encore essayé depuis GitHub au 15/09/2026 : premier passage réel la nuit suivante ; en cas d'échec, « MVRV non vérifié » |
 
 **Ce qu'il signale** : palier swing *candidat* (après le retrait des ventes swing,
 mais avant le gate de confirmation, illisible sans les dérivés), régime 1 J ou
 1 S, nouvelle divergence confirmée, franchissement de l'EMA 200, cassure du
 support ou de la résistance. Le message précise qu'un palier swing est candidat.
 
-**Ce qu'il ne signale jamais** : palier POSITION (il dépend du MVRV), vente,
+**Bande MVRV (depuis le 15 septembre 2026)** : le robot lit l'historique public de
+Coin Metrics et recalcule le Z-score avec la fonction de la page. Il signale un
+**changement de bande confirmé** (bandes du §8, `mvrvBandChange`) : une bande n'est
+atteinte qu'après 7 jours d'affilée (`MVRV_TENUE`), sinon la bande atteinte reste la
+précédente. Sans cette tenue, 87 des 143 changements depuis 2014 repartaient dans la
+bande quittée en moins d'une semaine ; avec elle, 43 alertes en 12 ans (3,6 par an),
+dont 9 seulement suivies d'un retour confirmé sous 30 jours. Entrée en
+« sous-évalué », « surachat » ou « sommet historique » : à regarder ; le reste : à
+noter. Journée lue : **avant-hier**, car Coin Metrics publie chaque journée quelques
+heures après sa fin — une journée fixe par date de passage, donc chaque changement
+une seule fois. Coin Metrics injoignable ou journée pas encore publiée : « MVRV non
+vérifié », jamais un silence. Le Z-score et sa bande figurent aussi dans chaque
+alerte et dans le message du lundi. Une bande est un fait de marché, pas un palier :
+le robot n'annonce toujours ni palier POSITION ni vente.
+
+**Ce qu'il ne signale jamais** : palier POSITION (il dépend du gate et de ta position), vente,
 invalidation, relevé manuel. Ces données n'existent que dans le navigateur de
 l'utilisateur ; le robot n'en voit aucune et ne doit jamais en recevoir.
 
@@ -881,8 +900,8 @@ Leçons de ce passage :
    e-mail réelle**, le dépôt est public :
    `git config user.name "Ataqc"` et
    `git config user.email "Ataqc@users.noreply.github.com"`.
-4. **Dépendances de test** : `npm ci`, puis `npm test`. Attendu : moteur 174,
-   robot 17, page 88 — **279 vérifications, 0 échec**. Un échec ici veut dire que
+4. **Dépendances de test** : `npm ci`, puis `npm test`. Attendu : moteur 182,
+   robot 24, page 88 — **294 vérifications, 0 échec**. Un échec ici veut dire que
    l'environnement diffère : le diagnostiquer avant toute modification.
 5. **Connexion GitHub** : `gh auth status`. Si l'utilisateur n'est pas connecté,
    lui demander de faire lui-même `gh auth login` (navigateur, compte `Ataqc`) —
