@@ -424,6 +424,10 @@ transactions par trois.
 - **Bilan « depuis ta dernière visite »** le 11 septembre 2026 — volet A des
   alertes (§6)
 - **Changement d'ordinateur préparé** le 14 septembre 2026 — procédure en §16
+- **Reprise sur le nouvel ordinateur faite** le 15 septembre 2026 : checklist du
+  §16 déroulée, 201 vérifications au vert. Les tâches GitHub (tests et robot)
+  passent en même temps sur Node 24 : GitHub signalait Node 20 en fin de vie à
+  chaque exécution
 
 ---
 
@@ -576,13 +580,29 @@ ligne (GitHub Pages) et le robot d'alerte (GitHub Actions) tournent chez GitHub 
 aucun commit en attente, aucune modification non enregistrée, mémoire de session
 Claude vide (tout le contexte est ici), aucun secret de dépôt configuré.
 
+**Reprise effectuée le 15 septembre 2026** (Windows 11). Le dossier avait été
+copié tel quel, historique git et identité compris. Il manquait Git, Node.js et
+GitHub CLI ; l'utilisateur les a installés, puis s'est connecté lui-même.
+Leçons de ce passage :
+- Juste après une installation, les nouveaux outils ne sont pas vus tant que
+  l'application Claude n'a pas été relancée. GitHub CLI s'installe dans
+  `C:\Program Files\GitHub CLI\gh.exe` : l'appeler par ce chemin si `gh` n'est
+  pas trouvé.
+- Python n'est pas nécessaire : Windows ne propose qu'un raccourci vers le
+  Microsoft Store. L'aperçu local tourne avec Node (voir tableau).
+- `gh auth login --web` ne peut pas s'utiliser en interactif ici : le lancer en
+  arrière-plan, lire le code à usage unique qu'il affiche et le donner à
+  l'utilisateur, qui le saisit sur https://github.com/login/device. Si GitHub
+  répond « code inconnu », arrêter la tentative et en relancer une pour obtenir
+  un code neuf.
+
 ### Ce qui ne suit PAS, et ce qu'il faut en faire
 
 | Élément | Où il vivait | Sur le nouvel ordinateur |
 |---|---|---|
 | Code, tests, briefing | dépôt GitHub | récupéré par le clonage |
 | `node_modules/` (jsdom) | disque local, ignoré par git | `npm ci` le réinstalle |
-| `.claude/launch.json` (serveur d'aperçu local) | disque local, ignoré par git | à recréer si besoin : `python -m http.server 8765` |
+| `.claude/launch.json` (serveur d'aperçu local) | disque local, ignoré par git | à recréer si besoin : un petit serveur de fichiers Node en ligne de commande (`node -e`) sur le port 8765, sans aucun paquet à installer |
 | Identité git du dépôt | configuration locale | à reposer (voir ci-dessous) |
 | Connexion GitHub (`gh`, envoi des commits) | trousseau de l'ancien ordinateur | **l'utilisateur** se reconnecte lui-même dans son navigateur |
 | **Saisies de la page** : position, PRU, cash, relevés manuels, historique des analyses, référence du bilan de visite | `localStorage` du navigateur de l'ancien ordinateur | **ne suivent pas.** La synchronisation des navigateurs ne copie pas ces données. À ressaisir, sauf si une fonction d'export/import a été ajoutée entre-temps |
@@ -591,8 +611,8 @@ Claude vide (tout le contexte est ici), aucun secret de dépôt configuré.
 
 À dérouler dans l'ordre, sans rien redemander à l'utilisateur sauf la connexion GitHub :
 
-1. **Outils** : vérifier `git --version`, `node --version` (≥ 20, la CI tourne en
-   20), `gh --version`. S'il en manque, dire à l'utilisateur lequel installer
+1. **Outils** : vérifier `git --version`, `node --version` (≥ 24, la CI tourne en
+   24 depuis le 15 septembre 2026), `gh --version`. S'il en manque, dire à l'utilisateur lequel installer
    depuis le site officiel (Git for Windows, Node.js LTS, GitHub CLI) — ne jamais
    télécharger d'installeur à sa place.
 2. **Clonage**, si le dossier n'existe pas encore :
