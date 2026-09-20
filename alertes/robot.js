@@ -5,11 +5,23 @@
    vraie page index.html (via tests/sandbox.js) et fait tourner ses fonctions,
    exactement comme le cockpit dans ton navigateur.
 
-   Il compare l'état du marché à la dernière clôture journalière avec l'état à la
-   clôture précédente, avec la même fonction que le bilan « depuis ta dernière
-   visite », et n'envoie une notification que si quelque chose a changé.
-   Il lit aussi le MVRV Z-score public de Coin Metrics, et signale un changement de
-   bande MVRV confirmé (nouvelle bande tenue 7 jours).
+   CE QU'IL ENVOIE, depuis le 20 septembre 2026 :
+   - en semaine, une notification UNIQUEMENT s'il y a au moins un événement
+     « à regarder » ;
+   - chaque lundi, un point de la semaine : tout ce qui a changé depuis sept
+     clôtures, même les « à noter ». C'est aussi lui qui prouve que le robot tourne.
+   Mesuré sur trois ans de bougies réelles rejouées : la politique d'avant alertait
+   63 % des jours (18,5 par mois, jusqu'à 24 jours d'affilée), ce qui vidait de son
+   sens le silence du robot. Avec les filtres ci-dessous : environ 4 notifications
+   par mois, plus le point du lundi.
+
+   FILTRES (ils ne touchent ni au cockpit, ni aux règles de décision) :
+   - un support ou une résistance n'est « cassé » que si la CLÔTURE journalière est
+     au-delà de MARGE_NIVEAU ; une mèche ne suffit plus ;
+   - un changement de palier SWING n'est signalé que s'il devient actionnable :
+     passer d'un « Rien » à un autre n'intéresse personne ;
+   - un changement de régime n'est signalé qu'une fois TENU (suiteConfirmee, la
+     fonction que la page utilise déjà pour les bandes MVRV).
 
    Ce qu'il NE PEUT PAS voir, et ne signale donc jamais :
    - funding, open interest, long/short : Binance bloque ses API dérivés depuis les
@@ -18,11 +30,7 @@
      action CANDIDATE, pas la décision complète du cockpit ;
    - ta position, tes relevés manuels, tes invalidations : ils n'existent que dans
      ton navigateur. D'où : aucune alerte de palier POSITION, donc jamais d'alerte
-     de vente. Un changement de bande MVRV est un fait de marché, pas un palier.
-
-   Silence = rien de notable, à condition que le robot tourne. Pour que ce silence
-   veuille dire quelque chose : un message discret chaque lundi, une notification
-   si le calcul échoue, et « MVRV non vérifié » quand Coin Metrics ne répond pas. */
+     de vente. Un changement de bande MVRV est un fait de marché, pas un palier. */
 "use strict";
 var path = require("path");
 var sandbox = require(path.join(__dirname, "..", "tests", "sandbox.js"));
@@ -32,6 +40,11 @@ var FNG     = "https://api.alternative.me/fng/?limit=31";
 var NTFY    = "https://ntfy.sh/";
 var COCKPIT = "https://ataqc.github.io/BTC-Cockpit/";
 var JOUR    = 86400000;
+
+var MARGE_NIVEAU  = 0.02;   /* clôture au-delà du niveau : 2 % */
+var TENUE_REGIME  = 7;      /* clôtures journalières avant d'annoncer un régime 1 J */
+var TENUE_REGIME_W = 2;     /* clôtures hebdomadaires pour le régime 1 S */
+var FENETRE_HEBDO = 7;      /* jours couverts par le point du lundi */
 
 function lire(url){
   return fetch(url, { signal: AbortSignal.timeout(30000) }).then(function(r){
@@ -80,17 +93,19 @@ function etat(C, d, ts){
   var cand = V.decSwing.candidate;
   s.sw.tier = (cand === null || cand === undefined) ? null
             : (C.TIERS[cand].dir === "sell" ? C.holdIdx(V.swing.score) : cand);
-  s.po.tier = null;   /* jamais d'alerte POSITION : elle dépend de ta position et du gate */
+  s.po.tier = null;   /* jamais d'alerte POSITION : elle dépend du gate et de ta position */
   s.inv = null;       /* tes invalidations vivent dans ton navigateur */
   s.stale = null;     /* tes relevés manuels aussi */
   return s;
 }
 
-/* État de la veille : on retire la dernière bougie journalière clôturée et tout ce
-   qui a été clôturé depuis son ouverture. Le prix de la veille est sa clôture. */
-function veille(d){
-  var T = d.kd[d.kd.length-1][0];
-  var kd = d.kd.slice(0, -1);
+/* État à n clôtures journalières en arrière : on retire les n dernières bougies
+   journalières et tout ce qui a été clôturé depuis l'ouverture de la première
+   retirée. Le prix d'alors est sa clôture. n = 1 : la veille. */
+function reculer(d, n){
+  var kd = d.kd.slice(0, -n);
+  if(kd.length < 2) throw new Error("historique journalier insuffisant");
+  var T = d.kd[d.kd.length - n][0];
   var der = kd[kd.length-1], avt = kd[kd.length-2];
   return {
     T: T,
@@ -101,9 +116,33 @@ function veille(d){
       k4: d.k4.filter(function(k){ return k[6] < T; }),
       kd: kd,
       kw: d.kw.filter(function(k){ return k[6] < T; }),
-      fng: (d.fng && d.fng.data) ? { data: d.fng.data.slice(1) } : d.fng
+      fng: (d.fng && d.fng.data) ? { data: d.fng.data.slice(n) } : d.fng
     }
   };
+}
+
+/* Régimes des dernières clôtures, calculés avec la fonction du cockpit, puis
+   changement CONFIRMÉ (suiteConfirmee) : un régime qui n'a pas tenu n'est pas
+   atteint, donc une oscillation ne réveille personne. */
+function regimeConfirme(C, klines, tenue, combien){
+  var cl = klines.map(function(k){ return parseFloat(k[4]); });
+  var labels = [], debut = Math.max(61, cl.length - combien);
+  for(var i = debut; i <= cl.length; i++) labels.push(C.regimeOf(cl.slice(0, i)).label);
+  return C.suiteConfirmee(labels, tenue);
+}
+
+/* Les événements d'une journée, filtrés. Les niveaux sont comparés à la CLÔTURE
+   élargie de MARGE_NIVEAU : une mèche ne casse plus rien. */
+function evenementsJour(C, avant, apres, cloture, regimes){
+  var ev = C.visitEvents(avant, apres, cloture * (1 + MARGE_NIVEAU), cloture * (1 - MARGE_NIVEAU))
+    .filter(function(e){
+      if(/^Régime/.test(e.txt)) return false;               /* remplacé par le régime confirmé */
+      if(/^SWING/.test(e.txt))
+        return apres.sw.tier !== null && apres.sw.tier !== undefined && C.TIERS[apres.sw.tier].dir !== "hold";
+      return true;
+    });
+  regimes.forEach(function(r){ ev.push(r); });
+  return ev;
 }
 
 /* MVRV : changement de bande confirmé, lu sur la journée d'AVANT-HIER. Coin Metrics
@@ -127,39 +166,74 @@ function etatMvrv(C, cm, maintenant){
         C.MVRV_TENUE + " jours (Z " + C.num(ch.z, 2) + " le " + date + ", Coin Metrics)" } };
 }
 
+function trier(ev){ return ev.sort(function(a, b){ return (b.fort ? 1 : 0) - (a.fort ? 1 : 0); }); }
+
 function analyser(C, brut, maintenant){
   var d = { tick: brut.tick, fng: brut.fng,
             k4: C.closedOnly(brut.k4), kd: C.closedOnly(brut.kd), kw: C.closedOnly(brut.kw) };
-  if(d.kd.length < 212) throw new Error("historique journalier insuffisant (" + d.kd.length + " bougies)");
-  var v = veille(d);
+  if(d.kd.length < 212 + FENETRE_HEBDO) throw new Error("historique journalier insuffisant (" + d.kd.length + " bougies)");
+  var v = reculer(d, 1), s = reculer(d, FENETRE_HEBDO);
   var avant = etat(C, v.donnees, v.T);
+  var avantSemaine = etat(C, s.donnees, s.T);
   var apres = etat(C, d, maintenant);
-  if(!avant || !apres) throw new Error("verdict non calculable sur ces données");
-  var r = C.visitRange(v.T);          /* le cockpit contient maintenant l'état du jour */
-  var ev = C.visitEvents(avant, apres, r.lo, r.hi);
+  if(!avant || !avantSemaine || !apres) throw new Error("verdict non calculable sur ces données");
+
+  var cloture = parseFloat(d.kd[d.kd.length-1][4]);
+  var regimes = [];
+  [["1 J", d.kd, TENUE_REGIME], ["1 S", d.kw, TENUE_REGIME_W]].forEach(function(u){
+    var ch = regimeConfirme(C, u[1], u[2], 40);
+    if(ch) regimes.push({ fort:false, txt:"Régime " + u[0] + " : " + ch.avant + " → <b>" + ch.apres +
+      "</b>, tenu " + u[2] + (u[0] === "1 J" ? " clôtures" : " semaines") });
+  });
+
   var mv = etatMvrv(C, brut.cm, maintenant);
+  var ev = evenementsJour(C, avant, apres, cloture, regimes);
   if(mv.evenement) ev.push(mv.evenement);
-  ev.sort(function(a, b){ return (b.fort ? 1 : 0) - (a.fort ? 1 : 0); });
-  return { T: v.T, avant: avant, apres: apres, lo: r.lo, hi: r.hi, evenements: ev, mvrv: mv };
+
+  /* le point du lundi compare l'état d'aujourd'hui à celui d'il y a sept clôtures :
+     aucune mémoire d'un passage à l'autre, tout est recalculé */
+  var evS = C.visitEvents(avantSemaine, apres, cloture * (1 + MARGE_NIVEAU), cloture * (1 - MARGE_NIVEAU));
+  if(mv.evenement) evS.push(mv.evenement);
+
+  var r = C.visitRange(v.T);          /* le cockpit contient maintenant l'état du jour */
+  var rS = C.visitRange(s.T);
+  return { T: v.T, TS: s.T, avant: avant, apres: apres, lo: r.lo, hi: r.hi, loS: rS.lo, hiS: rS.hi,
+           evenements: trier(ev), semaine: trier(evS), mvrv: mv, cloture: cloture };
 }
 
 function sansHtml(t){ return String(t).replace(/<[^>]+>/g, ""); }
 
+function lignes(C, ev, mvrv){
+  var out = ev.map(function(e){ return (e.fort ? "À regarder · " : "À noter · ") + sansHtml(e.txt); });
+  if(mvrv && mvrv.resume) out.push("MVRV : " + mvrv.resume + ".");
+  if(ev.some(function(e){ return /^SWING/.test(e.txt); }))
+    out.push("Palier swing = action candidate : le gate de confirmation n'est pas lisible depuis GitHub.");
+  return out;
+}
+
 function message(C, a){
   var n = a.evenements.length;
-  var fort = a.evenements.some(function(e){ return e.fort; });
-  var lignes = a.evenements.map(function(e){
-    return (e.fort ? "À regarder · " : "À noter · ") + sansHtml(e.txt);
-  });
-  lignes.push("");
-  lignes.push("Depuis le " + new Date(a.T).toLocaleDateString("fr-FR", {timeZone:"UTC"}) +
-              " 00:00 UTC : plus bas " + C.num(a.lo, 0) + " $, plus haut " + C.num(a.hi, 0) + " $.");
-  if(a.mvrv && a.mvrv.resume) lignes.push("MVRV : " + a.mvrv.resume + ".");
-  if(a.evenements.some(function(e){ return /^SWING/.test(e.txt); }))
-    lignes.push("Palier swing = action candidate : le gate de confirmation n'est pas lisible depuis GitHub.");
-  lignes.push("Ouvre le cockpit pour le tableau complet, avec tes invalidations.");
+  var corps = lignes(C, a.evenements, a.mvrv);
+  corps.splice(n, 0, "", "Depuis le " + new Date(a.T).toLocaleDateString("fr-FR", {timeZone:"UTC"}) +
+    " 00:00 UTC : plus bas " + C.num(a.lo, 0) + " $, plus haut " + C.num(a.hi, 0) + " $.");
+  corps.push("Ouvre le cockpit pour le tableau complet, avec tes invalidations.");
   return { titre: "BTC " + C.num(a.apres.px, 0) + " $ — " + n + (n > 1 ? " changements" : " changement"),
-           corps: lignes.join("\n"), priorite: fort ? 4 : 3 };
+           corps: corps.join("\n"), priorite: a.evenements.some(function(e){ return e.fort; }) ? 4 : 3 };
+}
+
+/* Point du lundi : tout ce qui a changé depuis sept clôtures, « à noter » compris.
+   C'est aussi la preuve que le robot tourne : s'il manque un lundi, il est arrêté. */
+function messageSemaine(C, a){
+  var corps = a.semaine.length ? lignes(C, a.semaine, a.mvrv)
+            : ["Rien de notable cette semaine."].concat(a.mvrv && a.mvrv.resume ? ["MVRV : " + a.mvrv.resume + "."] : []);
+  corps.push("");
+  corps.push("Depuis le " + new Date(a.TS).toLocaleDateString("fr-FR", {timeZone:"UTC"}) +
+             " : plus bas " + C.num(a.loS, 0) + " $, plus haut " + C.num(a.hiS, 0) + " $.");
+  corps.push("Si ce message manque un lundi, le robot est arrêté : son silence ne veut alors plus rien dire.");
+  return { titre: "BTC " + C.num(a.apres.px, 0) + " $ — point de la semaine" +
+                  (a.semaine.length ? " (" + a.semaine.length + ")" : ""),
+           corps: corps.join("\n"),
+           priorite: a.semaine.some(function(e){ return e.fort; }) ? 4 : 2 };
 }
 
 function envoyer(topic, m){
@@ -172,6 +246,19 @@ function envoyer(topic, m){
   }).then(function(r){ if(!r.ok) throw new Error("ntfy a répondu HTTP " + r.status); });
 }
 
+/* Ce que le robot enverrait aujourd'hui : le point du lundi, sinon une alerte
+   seulement s'il y a au moins un « à regarder », sinon rien. */
+function aEnvoyer(C, a, lundi, essai){
+  if(lundi) return messageSemaine(C, a);
+  if(a.evenements.some(function(e){ return e.fort; })) return message(C, a);
+  if(essai) return { titre: "BTC — essai du robot", priorite: 2,
+    corps: "Le robot fonctionne. Rien à regarder aujourd'hui." +
+           (a.mvrv && a.mvrv.resume ? "\nMVRV : " + a.mvrv.resume + "." : "") +
+           (a.evenements.length ? "\n" + a.evenements.length + " changement(s) « à noter » : ils partiront dans le point du lundi." : "") +
+           "\nNotification d'essai, demandée à la main." };
+  return null;
+}
+
 function principal(){
   var topic = process.env.NTFY_TOPIC || "";
   var essai = process.env.ESSAI === "true";
@@ -179,18 +266,12 @@ function principal(){
   var C = sandbox.load("index.html");
   return telecharger(C).then(function(brut){
     var a = analyser(C, brut, Date.now());
-    var mvLigne = a.mvrv && a.mvrv.resume ? "\nMVRV : " + a.mvrv.resume + "." : "";
     console.log("Prix " + C.num(a.apres.px, 0) + " $ · régime 1 J " + a.apres.reg.d1 +
                 " · 1 S " + a.apres.reg.w1 + " · score swing " + C.num(a.apres.sw.score, 2) +
                 (a.mvrv && a.mvrv.resume ? " · MVRV " + a.mvrv.resume : "") +
-                " · " + a.evenements.length + " changement(s)");
-    var m = null;
-    if(a.evenements.length) m = message(C, a);
-    else if(essai) m = { titre: "BTC — essai du robot", priorite: 2,
-      corps: "Le robot fonctionne. Rien de notable depuis la dernière clôture." + mvLigne + "\nNotification d'essai, demandée à la main." };
-    else if(lundi) m = { titre: "BTC — robot en service", priorite: 2,
-      corps: "Le robot tourne toujours. Rien de notable aujourd'hui." + mvLigne + "\nSi ce message manque un lundi, le robot est arrêté : son silence ne veut alors plus rien dire." };
-    if(!m){ console.log("Rien de notable : aucune notification envoyée."); return; }
+                " · " + a.evenements.length + " changement(s) du jour, " + a.semaine.length + " sur la semaine");
+    var m = aEnvoyer(C, a, lundi, essai);
+    if(!m){ console.log("Rien à regarder aujourd'hui : aucune notification envoyée."); return; }
     console.log("--- notification ---\n" + m.titre + "\n" + m.corps);
     if(!topic){ console.log("ESSAI À BLANC : secret NTFY_TOPIC absent, rien n'a été envoyé."); return; }
     return envoyer(topic, m).then(function(){ console.log("Notification envoyée."); });
@@ -204,4 +285,8 @@ function principal(){
 }
 
 if(require.main === module) principal();
-module.exports = { analyser: analyser, message: message, veille: veille, etat: etat, etatMvrv: etatMvrv, sansHtml: sansHtml };
+module.exports = { analyser: analyser, message: message, messageSemaine: messageSemaine, aEnvoyer: aEnvoyer,
+                   reculer: reculer, etat: etat, etatMvrv: etatMvrv, regimeConfirme: regimeConfirme,
+                   evenementsJour: evenementsJour, sansHtml: sansHtml,
+                   MARGE_NIVEAU: MARGE_NIVEAU, TENUE_REGIME: TENUE_REGIME,
+                   TENUE_REGIME_W: TENUE_REGIME_W, FENETRE_HEBDO: FENETRE_HEBDO };

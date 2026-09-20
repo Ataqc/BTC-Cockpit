@@ -24,7 +24,7 @@ faire.
 
 ## Ce que la pastille verte en haut veut dire
 
-À chaque modification envoyée sur GitHub, 294 vérifications automatiques
+À chaque modification envoyée sur GitHub, 313 vérifications automatiques
 s'exécutent :
 
 - **le moteur de calcul** — chaque indicateur est confronté à une série dont on
@@ -101,9 +101,12 @@ marché durablement baissier.
   signale que ce qui a changé depuis ton dernier passage sur l'appareil. Il voit
   tout, y compris tes relevés manuels et tes invalidations.
 - **Sur le téléphone** : un robot tourne chaque jour sur GitHub, peu après la
-  clôture de 00:00 UTC, et n'envoie une notification (via ntfy) que si quelque
-  chose a changé : palier swing candidat, régime, divergence, EMA 200, support ou
-  résistance, et changement de bande MVRV tenu 7 jours. Les serveurs GitHub sont aux États-Unis, où Binance bloque ses
+  clôture de 00:00 UTC. En semaine, il n'envoie une notification (via ntfy) que s'il
+  y a quelque chose **à regarder** : palier swing devenu actionnable, divergence,
+  support ou résistance cassé **en clôture**, bande MVRV. Le reste — régime tenu,
+  EMA 200 — part dans un **point du lundi**, qui résume la semaine écoulée. Rejoué
+  sur trois ans, cela fait environ 3 notifications par mois plus le point
+  hebdomadaire, au lieu de près de deux jours sur trois. Les serveurs GitHub sont aux États-Unis, où Binance bloque ses
   dérivés : le robot ne lit ni funding ni open interest, et ne voit aucune donnée
   personnelle. **Il n'annonce jamais de vente.** Chaque lundi, un message discret
   confirme qu'il tourne ; s'il échoue, il le dit.

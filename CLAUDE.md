@@ -434,7 +434,7 @@ qu'ils sont dans l'onglet Backtest et nulle part ailleurs.
     minimal simulé. Les tests appellent donc les **vraies** fonctions des vraies
     pages : ne recopie jamais une formule dans un test, un test qui recopie ce
     qu'il vérifie ne vérifie rien.
-  - `tests/engine.test.js` (182 vérifications, zéro dépendance) : identités
+  - `tests/engine.test.js` (187 vérifications, zéro dépendance) : identités
     mathématiques (moyenne mobile sur série constante = la constante, RSI sur série
     croissante = 100, décroissante = 0, plate = 50), chaîne de décision, péremption,
     **unicité des formules** (chaque indicateur défini une seule fois dans la page)
@@ -457,13 +457,17 @@ qu'ils sont dans l'onglet Backtest et nulle part ailleurs.
     disponible dans une seconde page simulée (MVRV sur 100 % du barème, bloc, cache
     du jour), backtests POSITION et 4 H complets, export puis import confirmé,
     réglages du backtest dans leur onglet.
-  - `tests/robot.test.js` (24 vérifications, zéro dépendance) : période comparée
+  - `tests/robot.test.js` (38 vérifications, zéro dépendance) : période comparée
     par le robot d'alerte, bougie en cours écartée, aucun palier POSITION ni
     aucune vente, alerte réelle sur une chute synthétique, notification sans
     balise HTML, échec franc si l'historique est trop court. Depuis le
     15 septembre 2026 : bande MVRV tenue 7 jours → alerte ; bande qui ne tient pas
     ou aller-retour → rien ; journée non publiée ou Coin Metrics injoignable →
-    « MVRV non vérifié ». Ramener la tenue à 1 jour fait rougir la suite.
+    « MVRV non vérifié ». Ramener la tenue à 1 jour fait rougir la suite. Depuis le
+    20 septembre 2026 : mèche sous un support → rien, clôture 2 % plus bas → alerte ;
+    palier d'un « Rien » à un autre → rien, palier actionnable → alerte ; régime
+    signalé une seule fois, une fois tenu ; en semaine seuls les « à regarder »
+    notifient, le lundi part toujours, même sans rien à signaler.
   - **Ce que les tests ne voient pas : la mise en page.** jsdom ne calcule aucune
     largeur. Toute modification d'affichage se vérifie dans un vrai navigateur à
     **390, 768, 1024 et 1280 px** : aucun tableau ne doit dépasser de sa carte, et
@@ -522,6 +526,8 @@ qu'ils sont dans l'onglet Backtest et nulle part ailleurs.
 - **MVRV relatif testé et écarté** le 15 septembre 2026 (§14) : aucune règle modifiée
 - **Notifications iPhone activées** le 15 septembre 2026 (§15)
 - **Alerte de changement de bande MVRV** ajoutée au robot le 15 septembre 2026 (§15)
+- **Politique de notification du robot revue** le 20 septembre 2026 (§15) : de 18,5 à
+  3,4 notifications par mois en semaine, plus un point du lundi
 
 ---
 
@@ -774,8 +780,10 @@ de trouver un gagnant par hasard.
 ## 15. Robot d'alerte (volet B)
 
 `alertes/robot.js`, lancé par `.github/workflows/alerte-quotidienne.yml` chaque
-jour à 00:20 UTC, juste après la clôture journalière (GitHub peut retarder une
-tâche planifiée de quelques minutes à une heure).
+jour à 00:20 UTC, juste après la clôture journalière. **En pratique, GitHub retarde
+beaucoup** : les cinq premiers passages réels ont eu lieu entre 04:43 et 04:59 UTC.
+C'est sans conséquence — le robot lit des bougies closes — mais c'est ce qui justifie
+de lire le MVRV d'avant-hier plutôt que celui d'hier.
 
 **Principe** : il charge la vraie page via `tests/sandbox.js` et fait tourner ses
 fonctions — **aucune formule recopiée**. Il compare l'état à la dernière clôture
@@ -791,12 +799,38 @@ fonction que le bilan de visite. Aucune mémoire entre deux passages, aucun comm
 | `fapi.binance.com` (funding, open interest) | 451 — bloqué |
 | `api.alternative.me` | 200 |
 | `ntfy.sh` | en service |
-| `community-api.coinmetrics.io` | pas encore essayé depuis GitHub au 15/09/2026 : premier passage réel la nuit suivante ; en cas d'échec, « MVRV non vérifié » |
+| `community-api.coinmetrics.io` | 200 — vérifié sur les passages du 16 au 20/09/2026, MVRV lu chaque nuit |
 
-**Ce qu'il signale** : palier swing *candidat* (après le retrait des ventes swing,
-mais avant le gate de confirmation, illisible sans les dérivés), régime 1 J ou
-1 S, nouvelle divergence confirmée, franchissement de l'EMA 200, cassure du
-support ou de la résistance. Le message précise qu'un palier swing est candidat.
+**Ce qu'il surveille** : palier swing *candidat* (après le retrait des ventes swing,
+mais avant le gate de confirmation, illisible sans les dérivés), régime 1 J ou 1 S,
+nouvelle divergence confirmée, franchissement de l'EMA 200, cassure du support ou de
+la résistance, bande MVRV. Le message précise qu'un palier swing est candidat.
+
+**Politique de notification — revue le 20 septembre 2026.** Les cinq premières nuits
+réelles ont toutes donné une notification. Rejoué sur trois ans de bougies réelles,
+l'ancien robot aurait alerté **63 % des jours** (18,5 par mois, jusqu'à 24 jours
+d'affilée) : son silence ne voulait plus rien dire. Trois filtres, qui ne touchent ni
+au cockpit ni aux règles de décision :
+- **niveaux** : un support ou une résistance n'est cassé que si la **clôture**
+  journalière est au-delà de `MARGE_NIVEAU` (2 %) ; une mèche ne suffit plus ;
+- **palier SWING** : signalé seulement s'il devient **actionnable** ; passer d'un
+  « Rien » à un autre n'intéresse personne ;
+- **régime** : signalé seulement une fois **tenu** — `TENUE_REGIME` = 7 clôtures en
+  1 J, 2 en 1 S — via `suiteConfirmee`, la fonction que la page utilise déjà pour
+  les bandes MVRV. Une bascule progressive est donc annoncée en deux temps
+  (RANGE → TRANSITION, puis TRANSITION → TENDANCE), chacun une seule fois.
+
+Et surtout, **ce qui part, et quand** :
+- **en semaine** : une notification seulement s'il y a au moins un « à regarder » ;
+- **le lundi** : un **point de la semaine**, qui compare l'état du jour à celui d'il y
+  a sept clôtures et liste tout, « à noter » compris. Il remplace l'ancien message
+  « toujours en service » et garde le même rôle : s'il manque un lundi, le robot est
+  arrêté. Aucune mémoire d'un passage à l'autre : la semaine est recalculée.
+
+Mesuré sur les mêmes trois ans : **3,4 notifications par mois en semaine** et 4,3
+points du lundi (dont 29 sur 157 sans rien à signaler), jamais plus de 4 jours
+notifiés d'affilée. Les « à regarder » restants : 80 paliers, 58 niveaux, 28
+divergences sur trois ans.
 
 **Bande MVRV (depuis le 15 septembre 2026)** : le robot lit l'historique public de
 Coin Metrics et recalcule le Z-score avec la fonction de la page. Il signale un
@@ -900,8 +934,8 @@ Leçons de ce passage :
    e-mail réelle**, le dépôt est public :
    `git config user.name "Ataqc"` et
    `git config user.email "Ataqc@users.noreply.github.com"`.
-4. **Dépendances de test** : `npm ci`, puis `npm test`. Attendu : moteur 182,
-   robot 24, page 88 — **294 vérifications, 0 échec**. Un échec ici veut dire que
+4. **Dépendances de test** : `npm ci`, puis `npm test`. Attendu : moteur 187,
+   robot 38, page 88 — **313 vérifications, 0 échec**. Un échec ici veut dire que
    l'environnement diffère : le diagnostiquer avant toute modification.
 5. **Connexion GitHub** : `gh auth status`. Si l'utilisateur n'est pas connecté,
    lui demander de faire lui-même `gh auth login` (navigateur, compte `Ataqc`) —

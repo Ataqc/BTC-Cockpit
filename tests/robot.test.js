@@ -131,6 +131,81 @@ ok(!!mv1.evenement &&
 ok(!!mv1.evenement && !/POSITION|[Vv]ente/.test(mv1.evenement.txt),
    "une alerte MVRV rapporte une bande, jamais un palier POSITION ni une vente");
 
+/* ---------- filtres : ce qui mérite une notification ---------- */
+var C2 = sandbox.load("index.html");
+function releveRobot(o){
+  var b = { sw:{tier:3, score:4.5}, po:{tier:null, score:null}, reg:{d1:"RANGE", w1:"RANGE"},
+            div:{d1:{bear:null,bull:null}, w1:{bear:null,bull:null}}, e200:50000, px:60000,
+            sup:58000, res:64000, inv:null, stale:null, ts:AUJ, v:1 };
+  for(var k in o) b[k] = o[k];
+  return b;
+}
+ok(robot.MARGE_NIVEAU === 0.02 && robot.TENUE_REGIME === 7 && robot.TENUE_REGIME_W === 2 &&
+   robot.FENETRE_HEBDO === 7,
+   "réglages de la politique de notification : 2 % au-delà du niveau, régime tenu 7 clôtures (2 en hebdo), semaine de 7 jours");
+var refR = releveRobot({}), memePrix = releveRobot({ px:59000 });
+ok(robot.evenementsJour(C2, refR, memePrix, 59000, []).length === 0,
+   "mèche passée sous le support mais clôture au-dessus : rien n'est signalé");
+ok(robot.evenementsJour(C2, refR, memePrix, 57800, []).length === 0,
+   "clôture 0,3 % sous le support : trop peu pour parler de cassure, rien n'est signalé");
+ok(robot.evenementsJour(C2, refR, memePrix, 56800, []).some(function(e){ return /Support de 58/.test(e.txt); }),
+   "clôture à plus de 2 % sous le support : la cassure est signalée");
+ok(robot.evenementsJour(C2, refR, releveRobot({ sw:{tier:2, score:6.1} }), 60000, []).length === 0,
+   "palier SWING qui passe d'un « Rien » à un autre : rien n'est signalé");
+ok(robot.evenementsJour(C2, refR, releveRobot({ sw:{tier:4, score:3.1} }), 60000, [])
+     .some(function(e){ return /^SWING/.test(e.txt); }),
+   "palier SWING qui devient actionnable : signalé");
+ok(robot.evenementsJour(C2, refR, releveRobot({ reg:{d1:"TENDANCE", w1:"RANGE"} }), 60000, []).length === 0,
+   "changement de régime brut : écarté, seul le régime tenu compte");
+
+function serieRegime(plat, tendance){
+  var o = [], px = 30000, t0 = Date.UTC(2024,0,1);
+  for(var i=0;i<plat+tendance;i++){
+    px = i < plat ? 30000 + (i % 2 ? 200 : -200) : px * 1.02;
+    var t = t0 + i*JOUR;
+    o.push([t, String(px), String(px*1.01), String(px*0.99), String(px), "1", t + JOUR - 1]);
+  }
+  return o;
+}
+var confirmes = [];
+for(var n=1;n<=45;n++){
+  var c = robot.regimeConfirme(C2, serieRegime(200, n), 7, 40);
+  if(c) confirmes.push(c.avant + " → " + c.apres);
+}
+ok(confirmes.length === 2 && confirmes[0] === "RANGE → TRANSITION" && confirmes[1] === "TRANSITION → TENDANCE",
+   "bascule progressive du régime : chaque étape signalée une seule fois, une fois tenue sept clôtures");
+ok(robot.regimeConfirme(C2, serieRegime(200, 3), 7, 40) === null,
+   "régime qui vient de basculer : rien tant qu'il n'a pas tenu");
+
+/* ---------- ce qui part, et quand ---------- */
+function analyse(o){
+  var b = { evenements:[], semaine:[], mvrv:{}, apres:{px:70000}, T:AUJ - JOUR, TS:AUJ - 7*JOUR,
+            lo:69000, hi:71000, loS:68000, hiS:72000, cloture:70000 };
+  for(var k in o) b[k] = o[k];
+  return b;
+}
+ok(robot.aEnvoyer(C2, analyse({ evenements:[{fort:false, txt:"Régime 1 J : RANGE → TENDANCE"}] }), false, false) === null,
+   "journée sans « à regarder » : aucune notification, ça attendra le point du lundi");
+var mJour = robot.aEnvoyer(C2, analyse({ evenements:[{fort:true, txt:"Support de 58 000 $ enfoncé"}] }), false, false);
+ok(!!mJour && mJour.priorite === 4 && /1 changement/.test(mJour.titre) && /À regarder/.test(mJour.corps),
+   "un seul « à regarder » suffit à notifier le jour même");
+var mLundi = robot.aEnvoyer(C2, analyse({ evenements:[], mvrv:{resume:"Z 1,00, bande « neutre bas »"},
+  semaine:[{fort:false, txt:"Régime 1 J : RANGE → TENDANCE"}] }), true, false);
+ok(!!mLundi && /point de la semaine/.test(mLundi.titre) && /Régime/.test(mLundi.corps) && /MVRV/.test(mLundi.corps),
+   "le lundi : tout ce qui a changé sur sept clôtures, « à noter » compris");
+var mVide = robot.aEnvoyer(C2, analyse({}), true, false);
+ok(!!mVide && /Rien de notable cette semaine/.test(mVide.corps) && /le robot est arrêté/.test(mVide.corps),
+   "un lundi sans rien : le message part quand même, pour que le silence garde un sens");
+var mEssai = robot.aEnvoyer(C2, analyse({ evenements:[{fort:false, txt:"Régime 1 J : RANGE → TENDANCE"}] }), false, true);
+ok(!!mEssai && /essai/.test(mEssai.titre) && /point du lundi/.test(mEssai.corps),
+   "essai manuel : le robot dit ce qu'il a vu et ce qui attendra lundi");
+ok(!!mVide && !!mLundi && mVide.corps.indexOf("<") < 0 && mLundi.corps.indexOf("<") < 0,
+   "aucun message ne contient de balise HTML");
+
+var aSem = robot.analyser(sandbox.load("index.html"), jeu(), Date.now());
+ok(Array.isArray(aSem.semaine) && aSem.TS === AUJ - 7*JOUR,
+   "le point de la semaine compare l'état du jour à celui d'il y a sept clôtures");
+
 console.log("");
 console.log("Tests du robot : " + pass + " réussis, " + fail.length + " échoués");
 if(fail.length){

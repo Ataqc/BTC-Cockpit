@@ -888,28 +888,38 @@ function mvrvBand(z){
   for(var i=0;i<MVRV_BANDS.length;i++) if(z < MVRV_BANDS[i].max) return i;
   return MVRV_BANDS.length - 1;
 }
-/* Changement de bande CONFIRMÉ. Une bande n'est « atteinte » qu'après avoir tenu
-   MVRV_TENUE jours d'affilée ; tant qu'aucune nouvelle bande n'a tenu, la bande
-   atteinte reste la précédente. Sur l'historique réel depuis 2014, sans cette tenue,
-   87 des 143 changements repartaient dans la bande quittée en moins d'une semaine.
-   Un aller-retour trop court ne produit donc rien, et un changement n'est signalé
-   qu'une fois : le jour où la nouvelle bande atteint sa tenue.
-   jour = minuit UTC de la journée lue. Renvoie null, {manque:true} si la journée
-   n'est pas dans la série, ou le changement. */
-var MVRV_TENUE = 7;
+/* Dernière valeur « atteinte » d'une suite : une valeur n'est atteinte qu'après avoir
+   tenu « tenue » pas d'affilée ; tant qu'aucune nouvelle valeur n'a tenu, la valeur
+   atteinte reste la précédente. Un aller-retour trop court ne produit donc rien.
+   Renvoie {avant, apres} si l'atteinte change au DERNIER pas, sinon null. Une valeur
+   absente (null) casse la suite sans rien atteindre. Sert au MVRV (bandes) et au
+   robot d'alerte (régime) : une seule définition. */
+function suiteConfirmee(vals, tenue){
+  var atteinte = null, avant = null, suite = 0, der = null;
+  for(var k=0;k<vals.length;k++){
+    var v = vals[k];
+    suite = (v === null || v === undefined) ? 0 : (v === der ? suite + 1 : 1);
+    der = v;
+    avant = atteinte;
+    if(suite >= tenue) atteinte = v;
+  }
+  return (avant === null || atteinte === avant) ? null : {avant:avant, apres:atteinte};
+}
+
+/* Changement de bande MVRV CONFIRMÉ, au sens ci-dessus. Sur l'historique réel depuis
+   2014, sans cette tenue, 87 des 143 changements repartaient dans la bande quittée en
+   moins d'une semaine ; avec elle, 43 alertes en 12 ans. jour = minuit UTC de la
+   journée lue. Renvoie null, {manque:true} si la journée n'est pas dans la série, ou
+   le changement. */
+var MVRV_TENUE = 7;var MVRV_TENUE = 7;
 function mvrvBandChange(t, z, jour){
   var i = t.indexOf(jour);
   if(i < 0) return {manque:true};
-  var atteinte = null, avant = null, suite = 0, der = null;
-  for(var k=0;k<=i;k++){
-    var b = mvrvBand(z[k]);
-    suite = b === null ? 0 : (b === der ? suite + 1 : 1);
-    der = b;
-    avant = atteinte;
-    if(suite >= MVRV_TENUE) atteinte = b;
-  }
-  if(avant === null || atteinte === avant) return null;
-  return {avant:avant, apres:atteinte, z:z[i], t:jour, fort: atteinte === 0 || atteinte >= 3};
+  var bandes = [];
+  for(var k=0;k<=i;k++) bandes.push(mvrvBand(z[k]));
+  var ch = suiteConfirmee(bandes, MVRV_TENUE);
+  if(!ch) return null;
+  return {avant:ch.avant, apres:ch.apres, z:z[i], t:jour, fort: ch.apres === 0 || ch.apres >= 3};
 }
 
 var CM_API = "https://community-api.coinmetrics.io/v4/timeseries/asset-metrics";

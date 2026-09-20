@@ -597,6 +597,19 @@ var zP = C.mvrvZSeries(SP.mc, SP.mv), eqP = 0;
 ok(eqP === 3, "le backtest POSITION note chaque jour EXACTEMENT comme le cockpit, MVRV compris (" + eqP + "/3 identiques)");
 C.D = {}; C.__set("mMvrv", ""); C.__set("mDate", "");
 
+g("Valeur atteinte après une tenue");
+ok(C.suiteConfirmee(["a","a","a","b","b"], 3) === null,
+   "une nouvelle valeur qui n'a pas tenu assez longtemps : rien n'est atteint");
+var sc = C.suiteConfirmee(["a","a","a","b","b","b"], 3);
+ok(!!sc && sc.avant === "a" && sc.apres === "b",
+   "valeur tenue trois fois : le changement est signalé, au pas où il est atteint");
+ok(C.suiteConfirmee(["a","a","a","b","b","b","b"], 3) === null,
+   "le pas suivant ne resignale pas le même changement");
+ok(C.suiteConfirmee(["a","a","a","b","b",null,"b","b"], 3) === null,
+   "une valeur absente casse la tenue : il faut la refaire entièrement");
+ok(C.suiteConfirmee(["a","a","a"], 3) === null,
+   "première valeur atteinte : ce n'est pas un changement");
+
 g("Bandes MVRV et changement de bande confirmé");
 ok(C.mvrvBand(-0.1) === 0 && C.mvrvBand(0) === 1 && C.mvrvBand(1.99) === 1 && C.mvrvBand(2) === 2 &&
    C.mvrvBand(4) === 3 && C.mvrvBand(7) === 4 && C.mvrvBand(null) === null && C.mvrvBand(NaN) === null,
