@@ -187,6 +187,18 @@ attendre().then(function(){
   saisir("hInvS", "28000");
   doc.getElementById("hSave").dispatchEvent(new win.Event("click", { bubbles:true }));
   ok(htm("hTable").length > 40, "l'analyse enregistrée apparaît dans l'historique");
+  ok(!/Ce que tes analyses ont donné/.test(htm("hTable")),
+     "une analyse du jour ne peut rien dire encore : pas de bilan affiché");
+  var vieilles = JSON.parse(win.localStorage.getItem("btc_history"));
+  vieilles.unshift({ ts: Date.now() - 100*JOUR, price: 25000, dirSwing:"buy",
+                     actSwing:"Achat 10-15 % du cash disponible", sSwing:2.5, sPos:3,
+                     regD:"RANGE", regW:"RANGE", invSwing: 1000, invPos: null, note:"" });
+  win.localStorage.setItem("btc_history", JSON.stringify(vieilles));
+  win.renderHist();
+  ok(/Ce que tes analyses ont donné/.test(htm("hTable")) && /Tous les jours \(référence\)/.test(htm("hTable")),
+     "avec une analyse assez ancienne : le bilan compare son verdict à la moyenne de tous les jours");
+  ok(htm("hTable").indexOf("NaN") < 0 && htm("hTable").indexOf("undefined") < 0,
+     "ni « NaN » ni « undefined » dans le bilan des analyses");
   ok(erreurs.length === 0, "toujours aucune erreur JavaScript après interaction" +
      (erreurs.length ? " (" + erreurs[0] + ")" : ""));
 
@@ -359,7 +371,10 @@ function coinMetrics(){
     px = px * (1 + Math.sin(i/60)*0.01 + 0.001);
     rc = rc*0.996 + px*0.004;
     rows.push({ asset:"btc", time:new Date(j0 + i*JOUR).toISOString(), PriceUSD:String(px),
-                CapMrktCurUSD:String(px*19e6), CapMVRVCur:String(px/rc), SplyCur:"19000000" });
+                CapMrktCurUSD:String(px*19e6), CapMVRVCur:String(px/rc), SplyCur:"19000000",
+                /* plus de sorties que d'entrées : des bitcoins quittent les plateformes */
+                FlowInExNtv:"1000", FlowOutExNtv:"1200",
+                "FlowInExNtv-status":"flash", "FlowOutExNtv-status":"flash" });
   }
   return { data:rows };
 }
@@ -404,6 +419,15 @@ function pageAvecCoinMetrics(){
        bloc.indexOf("NaN") < 0 && bloc.indexOf("undefined") < 0,
        "le bloc transmet à l'IA le MVRV et le prix réalisé calculés, avec leur source");
     ok(w2.localStorage.getItem("btc_cm") !== null, "la valeur du jour est gardée sur l'appareil : un seul téléchargement par jour");
+    var flux = w2.D.cm.flux30, signal7 = V.decSwing.signals[6];
+    ok(!!flux && flux.jours === 30 && flux.net < 0,
+       "les flux des plateformes sur 30 jours sont calculés (ici plus de sorties que d'entrées)");
+    ok(/flux exchanges 30 j/.test(signal7.txt) && signal7.dir === "buy",
+       "le 7e signal lit les flux automatiques au lieu de la saisie « réserves »");
+    ok(/Flux exchanges 30 jours : .*BTC sortis des plateformes/.test(bloc) &&
+       /Flux exchanges 7 jours :/.test(bloc),
+       "le bloc transmet les soldes de flux sur 7 et 30 jours, avec leur sens");
+    ok(/BTC sortis/.test(h2("cmBox")), "la carte des métriques lentes affiche le solde des flux");
 
     d2.getElementById("tabBacktest").dispatchEvent(new w2.MouseEvent("click", { bubbles:true, cancelable:true }));
     d2.getElementById("btHorizon").value = "position";

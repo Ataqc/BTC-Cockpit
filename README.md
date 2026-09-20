@@ -24,7 +24,7 @@ faire.
 
 ## Ce que la pastille verte en haut veut dire
 
-À chaque modification envoyée sur GitHub, 313 vérifications automatiques
+À chaque modification envoyée sur GitHub, 333 vérifications automatiques
 s'exécutent :
 
 - **le moteur de calcul** — chaque indicateur est confronté à une série dont on
@@ -36,8 +36,10 @@ s'exécutent :
   les règles actuelles, et surtout qu'il ne lit pas l'avenir : couper la fin de
   l'historique ne doit pas changer un seul jour du passé. En 4 heures et en
   POSITION, on vérifie en plus qu'il note chaque jour exactement comme le cockpit ;
-- **le MVRV automatique** — recalculé à partir de Coin Metrics, vérifié sur un
-  exemple calculé à la main, sans jamais lire l'avenir ;
+- **le MVRV automatique et les flux des plateformes** — recalculés à partir de Coin
+  Metrics, vérifiés sur des exemples calculés à la main, sans jamais lire l'avenir ;
+- **le bilan de tes analyses** — une analyse trop récente, ou antérieure aux bougies
+  disponibles, n'est jamais extrapolée ;
 - **la sauvegarde de tes saisies** — un fichier étranger est refusé, et rien n'est
   remplacé sans ta confirmation ;
 - **le robot d'alerte** — sur des bougies synthétiques : il compare la bonne
@@ -118,9 +120,10 @@ marché durablement baissier.
 - Aucune donnée personnelle dans le dépôt : position, PRU, cash et relevés
   manuels restent dans le navigateur de l'appareil (`localStorage`). Le fichier de
   sauvegarde que tu exportes les contient : garde-le pour toi.
-- Aucune clé, aucun abonnement : Binance, Alternative.me et Coin Metrics (MVRV et
-  prix réalisé, licence CC BY-NC 4.0) sont gratuits. Flux ETF, réserves et premium
-  Coinbase restent à saisir à la main.
+- Aucune clé, aucun abonnement : Binance, Alternative.me et Coin Metrics (MVRV, prix
+  réalisé et flux des plateformes, licence CC BY-NC 4.0) sont gratuits. Ne restent à
+  saisir à la main que les flux ETF et le premium Coinbase.
+- Sur iPhone, le cockpit s'ajoute à l'écran d'accueil et s'ouvre en plein écran.
 - Aucune valeur inventée : quand une donnée manque **ou qu'elle est périmée**,
   elle vaut N/D et son poids est redistribué, en le disant.
 

@@ -610,6 +610,53 @@ ok(C.suiteConfirmee(["a","a","a","b","b",null,"b","b"], 3) === null,
 ok(C.suiteConfirmee(["a","a","a"], 3) === null,
    "première valeur atteinte : ce n'est pas un changement");
 
+g("Bilan de tes analyses passées");
+ok(C.REG_TREND === 0.35 && C.REG_RANGE === 0.20,
+   "seuils du régime nommés et conformes au §8 : 0,35 pour TENDANCE, 0,20 pour RANGE");
+var kdH = [], J2 = Date.UTC(2026,0,1);
+for(var i=0;i<80;i++){
+  var pxH = 100 + i;                       /* hausse régulière d'une unité par jour */
+  kdH.push([J2 + i*86400000, String(pxH), String(pxH+2), String(pxH-2), String(pxH), "1", J2 + i*86400000 + 86399999]);
+}
+ok(C.histStats([], kdH, 15) === null && C.histStats([{ts:J2, price:100}], kdH.slice(0,20), 15) === null,
+   "sans analyse, ou sans assez de bougies pour l'horizon : aucun bilan inventé");
+var HA = [
+  {ts:J2 + 10*86400000, price:110, dirSwing:"buy", invSwing:95},    /* le prix monte : jamais touchée */
+  {ts:J2 + 20*86400000, price:120, dirSwing:"buy", invSwing:119},   /* le plus bas du jour passe dessous */
+  {ts:J2 + 70*86400000, price:170, dirSwing:"buy", invSwing:null},  /* trop récente pour un horizon de 15 jours */
+  {ts:Date.UTC(2026,5,1), price:200, dirSwing:"buy", invSwing:150}  /* postérieure aux bougies disponibles */
+];
+var SH = C.histStats(HA, kdH, 15);
+ok(SH.n === 4 && SH.lues === 3 && SH.horsFenetre === 1,
+   "une analyse hors des bougies disponibles est comptée à part, jamais devinée");
+ok(SH.invRenseignees === 2 && SH.invTouchees === 1,
+   "invalidation d'achat : touchée seulement si le prix est passé dessous");
+ok(SH.parAction.Achat.length === 2 && near(SH.parAction.Achat[0], (125/110-1)*100, 1e-9),
+   "rendement lu sur les vraies bougies à l'horizon demandé ; l'analyse trop récente est écartée");
+ok(SH.tous.n === 65 && SH.tous.moy > 0,
+   "référence : tous les jours où l'horizon tient dans les bougies disponibles");
+
+g("Flux d'exchanges");
+function ligneFlux(t, entre, sort){
+  return { time:new Date(t).toISOString(), FlowInExNtv:String(entre), FlowOutExNtv:String(sort),
+           "FlowInExNtv-status":"flash", "FlowOutExNtv-status":"flash" };
+}
+var JF = Date.UTC(2026,8,10), fx = [];
+for(var i=0;i<10;i++) fx.push(ligneFlux(JF + i*86400000, 100 + i, 50));
+var SF = C.cmSeries(fx);
+/* trois derniers jours : (107−50) + (108−50) + (109−50) = 174 */
+var f3 = C.cmFlux(SF, 3);
+ok(!!f3 && near(f3.net, 174) && f3.t === JF + 9*86400000 && f3.jours === 3,
+   "solde des flux calculé à la main sur trois jours, jusqu'au dernier jour disponible");
+ok(C.cmFlux(SF, 20) === null, "fenêtre plus longue que l'historique : N/D, jamais une somme partielle");
+var trou = fx.slice();
+trou[7] = ligneFlux(JF + 7*86400000, "", 50);
+ok(C.cmFlux(C.cmSeries(trou), 5) === null, "un jour sans donnée dans la fenêtre : N/D");
+ok(SF.prov[0] === true && SF.prov[9] === true,
+   "le statut « flash » de Coin Metrics est lu, mais il couvre tout l'historique : il ne dit rien de la fraîcheur");
+ok(near(C.cmFlux(C.cmSeries([ligneFlux(JF, 10, 40), ligneFlux(JF+86400000, 10, 40)]), 2).net, -60),
+   "sorties supérieures aux entrées : solde négatif, des bitcoins quittent les plateformes");
+
 g("Bandes MVRV et changement de bande confirmé");
 ok(C.mvrvBand(-0.1) === 0 && C.mvrvBand(0) === 1 && C.mvrvBand(1.99) === 1 && C.mvrvBand(2) === 2 &&
    C.mvrvBand(4) === 3 && C.mvrvBand(7) === 4 && C.mvrvBand(null) === null && C.mvrvBand(NaN) === null,

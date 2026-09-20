@@ -101,8 +101,8 @@ Toutes gratuites, sans clé, appelées directement depuis le navigateur.
 | Prix, bougies 4H / 1D / 1W | `api.binance.com` | temps réel |
 | Funding, open interest, long/short | `fapi.binance.com` | temps réel |
 | Fear & Greed | `api.alternative.me` | quotidienne |
-| MVRV Z-score, ratio MVRV, prix réalisé — et l'historique quotidien depuis 2010 pour le backtest POSITION | `community-api.coinmetrics.io` (gratuit, sans clé, licence CC BY-NC 4.0 : citer la source, c'est fait en bas de page) | quotidienne (journée de la veille) |
-| Flux ETF, réserves exchanges, Coinbase premium | **saisie manuelle** | hebdomadaire |
+| MVRV Z-score, ratio MVRV, prix réalisé, flux des plateformes (entrées et sorties d'exchanges) — et l'historique quotidien depuis 2010 pour le backtest POSITION | `community-api.coinmetrics.io` (gratuit, sans clé, licence CC BY-NC 4.0 : citer la source, c'est fait en bas de page) | quotidienne (journée de la veille) |
+| Flux ETF, Coinbase premium | **saisie manuelle** | hebdomadaire |
 | Liquidations 24 h | **aucune** — reste N/D | — |
 
 **MVRV automatique depuis le 15 septembre 2026.** Coin Metrics ne publie pas le
@@ -122,6 +122,15 @@ les dashboards publics (Farside, CryptoQuant ; bitbo et lookintobitcoin pour le 
 de secours) sont dans la page. C'est un choix assumé après avoir chiffré les alternatives payantes :
 Glassnode Studio à 49 $/mois n'inclut même pas l'accès API, et les offres avec
 API sont hors de proportion pour une position individuelle.
+
+**Flux des plateformes, depuis le 20 septembre 2026** (`FlowInExNtv` / `FlowOutExNtv`,
+gratuits) : solde entrées − sorties en BTC sur 7 et 30 jours, qui remplace la saisie
+« réserves exchanges ». Positif = des bitcoins entrent sur les plateformes, donc
+pression vendeuse. **Piège vérifié le 20/09/2026** : Coin Metrics marque ces valeurs
+« flash » sur **tout** l'historique depuis avril 2011, pas seulement sur la journée
+récente. Les écarter au motif qu'elles sont provisoires reviendrait à ne lire que
+2010 — le premier essai le faisait, un test l'interdit désormais. Les valeurs peuvent
+être révisées après coup : la date lue est toujours affichée.
 
 **Miroirs Binance** : `api1.binance.com` et `data-api.binance.vision` sont
 utilisés en repli automatique si le principal échoue.
@@ -146,6 +155,11 @@ utilisés en repli automatique si le principal échoue.
   téléchargement par jour et par appareil (`btc_cm` en `localStorage`) ; les
   champs manuels du MVRV et du prix réalisé ne servent plus qu'en secours
 - **Sauvegarde des saisies** : export dans un fichier et import (voir ci-dessous)
+- **Bilan de tes analyses passées** (`histStats`) : combien d'analyses enregistrées,
+  combien d'invalidations renseignées puis touchées, et ce que le prix a fait 15 jours
+  après chaque verdict swing, comparé à la moyenne de tous les jours. Lu sur les vraies
+  bougies ; une analyse trop récente pour l'horizon, ou antérieure aux bougies
+  disponibles, est comptée à part et jamais extrapolée
 
 **Bilan « depuis ta dernière visite »** — volet A des alertes. Il compare ce que
 le cockpit affiche à ce qu'il affichait lors de la visite précédente **sur cet
@@ -268,6 +282,13 @@ parcouru), sur **deux fenêtres** :
 La double fenêtre n'est pas décorative : sur 20 bougies seules, la jambe montante
 d'un range se lit comme une tendance. Le test l'a montré, la correction a été
 apportée.
+
+Les deux seuils sont nommés dans la page (`REG_TREND` = 0,35, `REG_RANGE` = 0,20).
+**Mesuré le 20 septembre 2026 : seul le seuil TENDANCE change quelque chose.**
+L'étiquette RANGE n'ouvre ni ne ferme aucune action — elle n'ajoute qu'une ligne
+d'explication —, si bien que déplacer `REG_RANGE` de 0,15 à 0,25 donne des résultats
+rigoureusement identiques sur les quatre cycles. Ne pas confondre « seuil affiché »
+et « seuil qui décide ».
 
 **Table score → action**
 | Score | Action candidate |
@@ -415,6 +436,10 @@ qu'ils sont dans l'onglet Backtest et nulle part ailleurs.
   ensuite. En cas de recalibrage, imposer une période de validation distincte de
   celle utilisée pour régler.
 - Les liquidations restent N/D. Ne pas inventer de substitut.
+- **Le signal Fear & Greed du gate a le mauvais sens, sur les deux moitiés de
+  l'historique** (§14, étude du 20 septembre 2026). Il reste en place pour l'instant :
+  le gate ne crée jamais d'action, il ne fait qu'autoriser ou bloquer. À trancher avec
+  l'utilisateur avant d'y toucher.
 - **Le MVRV automatique dépend d'un tiers gratuit.** Si Coin Metrics ferme son API
   communautaire ou change sa méthode, la saisie de secours reprend et la page le dit.
   Le recalcul du Z-score n'a été validé que contre lookintobitcoin.
@@ -434,7 +459,7 @@ qu'ils sont dans l'onglet Backtest et nulle part ailleurs.
     minimal simulé. Les tests appellent donc les **vraies** fonctions des vraies
     pages : ne recopie jamais une formule dans un test, un test qui recopie ce
     qu'il vérifie ne vérifie rien.
-  - `tests/engine.test.js` (187 vérifications, zéro dépendance) : identités
+  - `tests/engine.test.js` (198 vérifications, zéro dépendance) : identités
     mathématiques (moyenne mobile sur série constante = la constante, RSI sur série
     croissante = 100, décroissante = 0, plate = 50), chaîne de décision, péremption,
     **unicité des formules** (chaque indicateur défini une seule fois dans la page)
@@ -447,8 +472,12 @@ qu'ils sont dans l'onglet Backtest et nulle part ailleurs.
     l'avenir), bougies hebdomadaires reconstituées, **backtests 4 H et POSITION**
     (exécution au cours suivant, carence, aucune vente sous les règles actuelles,
     troncature sans effet sur le passé, **scores identiques à ceux du cockpit**) et
-    sauvegarde des saisies (refus des fichiers étrangers, nettoyage, fusion).
-  - `tests/page.test.js` (88 vérifications, `jsdom`) : charge `index.html` entière
+    sauvegarde des saisies (refus des fichiers étrangers, nettoyage, fusion). Depuis
+    le 20 septembre 2026 : flux d'exchanges (somme calculée à la main, N/D si un jour
+    manque, statut « flash » lu sans servir de filtre), bilan des analyses passées
+    (analyse trop récente ou hors bougies écartée, invalidation touchée selon le sens)
+    et seuils de régime nommés.
+  - `tests/page.test.js` (95 vérifications, `jsdom`) : charge `index.html` entière
     avec un faux réseau et vérifie le rendu, les scores, le bloc généré, la
     péremption, la bascule des onglets (par clic et par adresse), un backtest
     complet, le bilan de visite (référence conservée pendant la visite, jamais
@@ -456,7 +485,9 @@ qu'ils sont dans l'onglet Backtest et nulle part ailleurs.
     15 septembre 2026 : Coin Metrics injoignable (secours annoncé), Coin Metrics
     disponible dans une seconde page simulée (MVRV sur 100 % du barème, bloc, cache
     du jour), backtests POSITION et 4 H complets, export puis import confirmé,
-    réglages du backtest dans leur onglet.
+    réglages du backtest dans leur onglet. Depuis le 20 septembre 2026 : flux des
+    plateformes dans le 7e signal et dans le bloc, bilan des analyses affiché
+    seulement quand il a de quoi être lu.
   - `tests/robot.test.js` (38 vérifications, zéro dépendance) : période comparée
     par le robot d'alerte, bougie en cours écartée, aucun palier POSITION ni
     aucune vente, alerte réelle sur une chute synthétique, notification sans
@@ -528,6 +559,10 @@ qu'ils sont dans l'onglet Backtest et nulle part ailleurs.
 - **Alerte de changement de bande MVRV** ajoutée au robot le 15 septembre 2026 (§15)
 - **Politique de notification du robot revue** le 20 septembre 2026 (§15) : de 18,5 à
   3,4 notifications par mois en semaine, plus un point du lundi
+- **20 septembre 2026, suite** : flux des plateformes automatiques (§5), bilan des
+  analyses passées (§6), cockpit en plein écran depuis l'écran d'accueil d'un iPhone,
+  prompt d'analyse aligné sur les backtests, étude du gate et calibration du régime
+  (§14) — aucune règle de décision modifiée
 
 ---
 
@@ -765,6 +800,74 @@ comme coûteux (« sans aucune vente » reste proche des règles actuelles, sauf
 métrique relative) sur les mêmes cycles : chaque essai de plus augmente la chance
 de trouver un gagnant par hasard.
 
+### Le gate des 7 signaux — première mesure (20 septembre 2026)
+
+Trois des sept signaux ont un historique gratuit : **funding** (Binance, depuis
+09/2019), **Fear & Greed** (depuis 02/2018) et **flux des plateformes** (Coin Metrics).
+Les autres n'ont que 30 jours d'historique, ou aucun (liquidations). Règles lues telles
+quelles dans `gateSignals`, aucun seuil ajusté, chaque signal coupé en deux moitiés
+d'égale longueur.
+
+Rendement moyen des 15 jours suivants, comparé à **tous les jours de la même moitié** :
+
+| Signal | 1re moitié | 2e moitié |
+|---|---|---|
+| Funding « alléger » (> 0,02 %) | +0,6 % contre +2,3 % — bon sens | +2,5 % contre +1,7 % — mauvais sens |
+| Funding « accumuler » (< −0,02 %) | +11,7 % contre +2,3 % — bon sens (23 jours) | jamais déclenché |
+| Fear & Greed « alléger » (> 55) | +5,7 % contre +2,4 % — mauvais sens | +2,0 % contre +1,4 % — mauvais sens |
+| Fear & Greed « accumuler » (< 45) | +1,3 % contre +2,4 % — mauvais sens | +0,5 % contre +1,4 % — mauvais sens |
+| Flux « alléger » (entrées nettes) | +1,0 % contre +1,9 % — bon sens | +1,1 % contre +1,4 % — bon sens |
+| Flux « accumuler » (sorties nettes) | +3,6 % contre +1,9 % — bon sens | +1,7 % contre +1,4 % — bon sens |
+
+Accord des trois signaux depuis septembre 2019 (2552 jours) : quand deux ou trois
+plaident pour **alléger**, les 15 jours suivants ont rendu +2,5 % contre +2,0 % pour
+l'ensemble des jours, et +19,7 % contre +14,7 % à 90 jours — le mauvais sens. Pour
+**accumuler** : +2,3 % à 15 jours (bon sens) mais +9,7 % contre +14,7 % à 90 jours.
+
+**Lecture :**
+- **Les flux des plateformes sont le seul des trois à pointer dans le bon sens des
+  deux côtés et sur les deux moitiés.** C'est le signal ajouté le même jour.
+- **Fear & Greed a le mauvais sens partout** : l'avidité a précédé des rendements
+  supérieurs à la moyenne, la peur des rendements inférieurs. Même piège que le RSI —
+  sur le bitcoin, ces mesures captent du momentum, pas un excès à corriger.
+- **Le funding est rare et mitigé** ; son côté « accumuler » ne s'est plus déclenché
+  une seule fois depuis 2023.
+- Le gate ne **crée** jamais d'action : il autorise ou bloque. Un signal à l'envers ne
+  peut donc pas déclencher une vente, mais il peut en autoriser une mauvaise, ou
+  bloquer un achat justifié.
+
+**Aucune règle n'est modifiée.** La question « faut-il retirer Fear & Greed du gate ? »
+est posée à l'utilisateur avec ce tableau. Ce qui manque pour trancher entièrement :
+l'effet du gate complet, non mesurable tant que funding, OI, long/short et liquidations
+n'ont pas d'historique gratuit.
+
+### Calibration du seuil de régime, horizon POSITION (20 septembre 2026)
+
+Protocole fixé avant calcul : grille de six réglages seulement, quatre cycles coupés
+aux halvings, trois carences, et adoption seulement si le nouveau seuil fait mieux sur
+**chaque** cycle complet et à **chaque** carence, sans pire perte plus profonde.
+
+Performance des règles actuelles POSITION, carence 30 jours :
+
+| Seuil TENDANCE | Semaines en TENDANCE | 2012-2016 | 2016-2020 | 2020-2024 | 2024-2026 |
+|---|---|---|---|---|---|
+| 0,25 | 25,3 % | +3468 % | +1531 % | +593 % | +14 % |
+| 0,30 | 19,9 % | +3474 % | +1531 % | +601 % | +14 % |
+| **0,35 — actuel** | 14,7 % | +3474 % | +1269 % | +568 % | +14 % |
+| 0,45 | 6,0 % | +3130 % | +1146 % | +533 % | +17 % |
+
+**Lecture :**
+- **Le seuil RANGE ne décide de rien** : 0,15, 0,20 ou 0,25 donnent des résultats
+  rigoureusement identiques sur les quatre cycles. Seul le seuil TENDANCE agit (§8).
+- **Abaisser TENDANCE à 0,30** ferait mieux en 2016-2020 (+1531 % contre +1269 %) et
+  en 2020-2024 (+601 % contre +568 %), à égalité en 2012-2016, très légèrement moins
+  bien sur le cycle en cours — et la pire perte est un point plus profonde en
+  2016-2020.
+- **Relever à 0,45 est nettement moins bon** partout sauf sur le cycle en cours.
+- **Les critères fixés d'avance ne sont pas remplis** (il fallait faire mieux partout,
+  sans pire perte plus profonde) → **aucun changement**. À reconsidérer quand un cycle
+  complet de plus sera disponible, pas avant.
+
 **Prochaines étapes possibles, par ordre de valeur :**
 1. **Alertes**, en deux volets choisis le 11 septembre 2026 :
    - **A — fait** : bilan « depuis ta dernière visite » en tête du cockpit (§6).
@@ -774,6 +877,13 @@ de trouver un gagnant par hasard.
 3. ~~Backtest POSITION~~ — **fait le 15 septembre 2026**, ci-dessus.
 4. ~~Bandes MVRV relatives~~ — **testées et écartées le 15 septembre 2026**, ci-dessus.
 5. ~~Robot d'alerte et MVRV~~ — **fait le 15 septembre 2026** (§15).
+6. **Trancher le sort de Fear & Greed dans le gate** : son sens est faux sur les deux
+   moitiés de l'historique (étude ci-dessus). Décision de l'utilisateur, pas de
+   session.
+7. **Reprendre la calibration du seuil TENDANCE** quand un cycle complet de plus sera
+   disponible — pas avant, sous peine d'ajuster le passé.
+8. **Rendre le gate testable** si une source gratuite d'historique apparaît pour
+   l'open interest, le long/short ou les liquidations.
 
 ---
 
@@ -934,8 +1044,8 @@ Leçons de ce passage :
    e-mail réelle**, le dépôt est public :
    `git config user.name "Ataqc"` et
    `git config user.email "Ataqc@users.noreply.github.com"`.
-4. **Dépendances de test** : `npm ci`, puis `npm test`. Attendu : moteur 187,
-   robot 38, page 88 — **313 vérifications, 0 échec**. Un échec ici veut dire que
+4. **Dépendances de test** : `npm ci`, puis `npm test`. Attendu : moteur 198,
+   robot 40, page 95 — **333 vérifications, 0 échec**. Un échec ici veut dire que
    l'environnement diffère : le diagnostiquer avant toute modification.
 5. **Connexion GitHub** : `gh auth status`. Si l'utilisateur n'est pas connecté,
    lui demander de faire lui-même `gh auth login` (navigateur, compte `Ataqc`) —

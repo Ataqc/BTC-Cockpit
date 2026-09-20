@@ -2,7 +2,13 @@
 <html lang="fr">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- Ajouté à l'écran d'accueil d'un iPhone, le cockpit s'ouvre sans la barre du navigateur. -->
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="BTC Cockpit">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0e1116">
 <title>BTC — Cockpit de données</title>
 <style>
 :root{
@@ -325,7 +331,7 @@ td.n .seg{white-space:nowrap}
   <div class="card">
     <h2>Métriques lentes</h2>
     <div id="cmBox"><div class="hint">Coin Metrics : chargement…</div></div>
-    <div class="note">Le <b>MVRV</b> et le <b>prix réalisé</b> arrivent tout seuls de Coin Metrics, recalculés chaque jour. Les flux ETF, les réserves et le premium n'ont pas de source gratuite en automatique : ils bougent en semaines, pas en heures, les relever une fois par semaine suffit. Laisse vide si tu n'as pas la donnée — elle passera en « N/D ».</div>
+    <div class="note">Le <b>MVRV</b>, le <b>prix réalisé</b> et les <b>flux des plateformes</b> (qui remplacent les réserves) arrivent tout seuls de Coin Metrics, recalculés chaque jour. Les flux ETF et le premium Coinbase n'ont pas de source gratuite en automatique : ils bougent en semaines, pas en heures, les relever une fois par semaine suffit. Laisse vide si tu n'as pas la donnée — elle passera en « N/D ».</div>
     <div class="fields" style="margin-top:14px">
       <div>
         <label>MVRV Z-score — secours</label>
@@ -348,7 +354,7 @@ td.n .seg{white-space:nowrap}
         <div class="sub"><a href="https://farside.co.uk/bitcoin-etf-flow-all-data/" target="_blank" rel="noopener">Farside</a></div>
       </div>
       <div>
-        <label>Réserves exchanges</label>
+        <label>Réserves exchanges — secours</label>
         <input type="text" id="mResv" placeholder="hausse / baisse / stable">
         <div class="sub"><a href="https://cryptoquant.com/asset/btc/chart/exchange-flows/exchange-reserve" target="_blank" rel="noopener">CryptoQuant</a></div>
       </div>
@@ -493,7 +499,7 @@ td.n .seg{white-space:nowrap}
 </div><!-- /vBacktest -->
 
   <footer>
-    Données : Binance (technique &amp; dérivés) · Alternative.me (sentiment) · <a href="https://coinmetrics.io/community-network-data/" target="_blank" rel="noopener">Coin Metrics</a> (MVRV, prix réalisé, historique — licence CC BY-NC 4.0) · saisie manuelle (flux)<br>
+    Données : Binance (technique &amp; dérivés) · Alternative.me (sentiment) · <a href="https://coinmetrics.io/community-network-data/" target="_blank" rel="noopener">Coin Metrics</a> (MVRV, prix réalisé, flux des plateformes, historique — licence CC BY-NC 4.0) · saisie manuelle (flux)<br>
     Aucune donnée ne quitte cette machine. Aucun compte, aucune clé, aucun frais.
   </footer>
 </div>
@@ -743,12 +749,13 @@ function effRatio(cl,n){
 /* Deux fenêtres, courte et longue. Une jambe montante de range ressemble à une
    tendance sur 20 bougies mais pas sur 60 : exiger l'accord des deux évite
    de confondre « ça monte en ce moment » avec « c'est une tendance ». */
+var REG_TREND = 0.35, REG_RANGE = 0.20;   /* seuils du §8, les mêmes pour tout le monde */
 function regimeOf(cl){
   var a = effRatio(cl,20), b = effRatio(cl,60);
   if(a===null) return {er:null,er60:null,label:"N/D",cls:"t-neu"};
   if(b===null) b = a;
-  if(a >= 0.35 && b >= 0.35) return {er:a,er60:b,label:"TENDANCE",cls:"t-org"};
-  if(a <= 0.20 && b <= 0.20) return {er:a,er60:b,label:"RANGE",cls:"t-grn"};
+  if(a >= REG_TREND && b >= REG_TREND) return {er:a,er60:b,label:"TENDANCE",cls:"t-org"};
+  if(a <= REG_RANGE && b <= REG_RANGE) return {er:a,er60:b,label:"RANGE",cls:"t-grn"};
   return {er:a,er60:b,label:"TRANSITION",cls:"t-neu"};
 }
 
@@ -923,6 +930,9 @@ function mvrvBandChange(t, z, jour){
 }
 
 var CM_API = "https://community-api.coinmetrics.io/v4/timeseries/asset-metrics";
+/* Métriques gratuites utilisées par le cockpit. Les flux d'exchanges remplacent la
+   saisie « réserves exchanges » : entrées et sorties de bitcoins des plateformes. */
+var CM_METRICS = "CapMVRVCur,CapMrktCurUSD,SplyCur,FlowInExNtv,FlowOutExNtv";
 var CM_MAX_AGE = 4;   /* jours. Coin Metrics publie chaque jour la journée de la veille. */
 var CM_KEY = "btc_cm";
 /* Historique quotidien complet depuis 2010, page par page. Gratuit, sans clé ;
@@ -942,23 +952,45 @@ function cmFetch(metrics){
 }
 /* Lignes Coin Metrics → séries alignées. Une valeur absente vaut NaN, jamais 0. */
 function cmSeries(rows){
-  var S = {t:[], px:[], mc:[], mv:[], sply:[]};
+  var S = {t:[], px:[], mc:[], mv:[], sply:[], flIn:[], flOut:[], prov:[]};
   function f(x){ var v = parseFloat(x); return isFinite(v) ? v : NaN; }
   rows.forEach(function(r){
     var t = Date.parse(r.time);
     if(!isFinite(t)) return;
     S.t.push(t); S.px.push(f(r.PriceUSD)); S.mc.push(f(r.CapMrktCurUSD));
     S.mv.push(f(r.CapMVRVCur)); S.sply.push(f(r.SplyCur));
+    S.flIn.push(f(r.FlowInExNtv)); S.flOut.push(f(r.FlowOutExNtv));
+    /* Coin Metrics marque « flash » une journée encore révisable */
+    S.prov.push(r["FlowInExNtv-status"] === "flash" || r["FlowOutExNtv-status"] === "flash");
   });
   return S;
 }
-/* Dernière valeur exploitable de la série */
+/* Flux d'exchanges : solde entrées − sorties, en BTC, sur les n derniers jours
+   disponibles. Positif = des bitcoins sont entrés sur les plateformes (pression
+   vendeuse) ; négatif = ils en sont sortis. N/D si un seul jour manque dans la
+   fenêtre : pas de somme partielle silencieuse.
+   Coin Metrics sert cette métrique par son pipeline temps réel — statut « flash »
+   sur TOUT l'historique depuis avril 2011, vérifié le 20/09/2026. Ce n'est donc pas
+   un marqueur de fraîcheur : l'écarter reviendrait à ne lire que 2010. Les valeurs
+   peuvent être révisées après coup ; la date lue est toujours affichée. */
+function cmFlux(S, n){
+  var i = S.t.length - 1;
+  while(i >= 0 && (!isFinite(S.flIn[i]) || !isFinite(S.flOut[i]))) i--;
+  if(i < n-1) return null;
+  var net = 0;
+  for(var k = i-n+1; k <= i; k++){
+    if(!isFinite(S.flIn[k]) || !isFinite(S.flOut[k])) return null;
+    net += S.flIn[k] - S.flOut[k];
+  }
+  return { net:net, t:S.t[i], jours:n };
+}
 function cmLatest(S){
   var z = mvrvZSeries(S.mc, S.mv);
   for(var i=z.length-1;i>=0;i--){
     if(z[i] === null) continue;
     var rc = S.mc[i]/S.mv[i];
-    return { v:1, t:S.t[i], z:z[i], mvrv:S.mv[i], rc:rc, real: S.sply[i] > 0 ? rc/S.sply[i] : null };
+    return { v:2, t:S.t[i], z:z[i], mvrv:S.mv[i], rc:rc, real: S.sply[i] > 0 ? rc/S.sply[i] : null,
+             flux7: cmFlux(S, 7), flux30: cmFlux(S, 30) };
   }
   return null;
 }
@@ -972,9 +1004,9 @@ function cmLoad(){
   var n = new Date(), hier = Date.UTC(n.getUTCFullYear(), n.getUTCMonth(), n.getUTCDate()) - 86400000;
   try{
     var c = JSON.parse(localStorage.getItem(CM_KEY));
-    if(c && c.v === 1 && c.t >= hier && cmFresh(c, n.getTime())){ c.cache = true; return Promise.resolve(c); }
+    if(c && c.v === 2 && c.t >= hier && cmFresh(c, n.getTime())){ c.cache = true; return Promise.resolve(c); }
   }catch(e){}
-  return cmFetch("CapMVRVCur,CapMrktCurUSD,SplyCur").then(function(rows){
+  return cmFetch(CM_METRICS).then(function(rows){
     var L = cmLatest(cmSeries(rows));
     if(!L) throw new Error("aucune valeur MVRV exploitable");
     try{ localStorage.setItem(CM_KEY, JSON.stringify(L)); }catch(e){}
@@ -1130,9 +1162,18 @@ function gateSignals(horizon){
   var e30 = stale ? null : parseNum($("mEtf30").value);
   if(e1!==null){  votes.push(e1>0?"buy":"sell");  det.push("ETF jour "+sgn(e1,0)+" M$"); }
   if(e30!==null){ votes.push(e30>0?"buy":"sell"); det.push("ETF 30 j "+sgn(e30,0)+" M$"); }
-  var rv = stale ? "" : $("mResv").value.toLowerCase();
-  if(/hauss|augment|montе|monte/.test(rv)){ votes.push("sell"); det.push("réserves en hausse"); }
-  else if(/baiss|diminu|descend/.test(rv)){ votes.push("buy"); det.push("réserves en baisse"); }
+  /* Réserves des plateformes : flux Coin Metrics s'ils sont frais, sinon la saisie
+     de secours. Des bitcoins qui ENTRENT sur les plateformes = pression vendeuse. */
+  var fx = cmFresh(D.cm, Date.now()) ? D.cm.flux30 : null;
+  if(fx){
+    votes.push(fx.net > 0 ? "sell" : "buy");
+    det.push("flux exchanges 30 j " + (fx.net > 0 ? "+"+num(fx.net,0)+" BTC vers les plateformes"
+                                                  : num(-fx.net,0)+" BTC retirés"));
+  } else {
+    var rv = stale ? "" : $("mResv").value.toLowerCase();
+    if(/hauss|augment|monte/.test(rv)){ votes.push("sell"); det.push("réserves en hausse (saisie)"); }
+    else if(/baiss|diminu|descend/.test(rv)){ votes.push("buy"); det.push("réserves en baisse (saisie)"); }
+  }
   var cb = stale ? null : parseNum($("mCbp").value);
   if(cb!==null){ votes.push(cb>0?"buy":"sell"); det.push("premium "+sgn(cb,3)); }
   var fx = null;
@@ -1717,7 +1758,7 @@ function renderHist(){
     $("hTable").innerHTML = "<div class='hint' style='margin-top:14px'>Aucune analyse enregistrée pour l'instant. La première le sera dès que tu cliqueras sur le bouton.</div>";
     return;
   }
-  var h = "<table style='margin-top:16px'><thead><tr><th>Date</th><th style='text-align:right'>Prix alors</th>"+
+  var h = "<div class='scroll'><table style='margin-top:16px'><thead><tr><th>Date</th><th style='text-align:right'>Prix alors</th>"+
           "<th>Verdict swing</th><th style='text-align:right'>Depuis</th><th>Invalidation</th><th></th></tr></thead><tbody>";
   H.slice().reverse().forEach(function(e,ri){
     var r = histReview(e), idx = H.length-1-ri, inv;
@@ -1734,7 +1775,8 @@ function renderHist(){
          "<td>"+inv+"</td>"+
          "<td style='text-align:right'><button data-del='"+idx+"' style='padding:4px 9px;font-size:12px'>Suppr.</button></td></tr>";
   });
-  h += "</tbody></table>";
+  h += "</tbody></table></div>";
+  h += histStatsHtml(H);
   $("hTable").innerHTML = h;
   Array.prototype.forEach.call($("hTable").querySelectorAll("[data-del]"), function(b){
     b.addEventListener("click", function(){
@@ -1743,6 +1785,69 @@ function renderHist(){
       histSave(a); renderHist(); buildBlock();
     });
   });
+}
+
+/* ---- Ce que tes analyses passées ont donné ----
+   Lu sur les vraies bougies, jamais extrapolé : une analyse trop récente pour
+   l'horizon demandé n'est pas comptée, et une analyse antérieure aux bougies
+   disponibles non plus. Ce bilan RAPPORTE, il ne juge ni ne recommande rien. */
+function histStats(H, kd, jours){
+  if(!H || !H.length || !kd || kd.length < jours + 30) return null;
+  var cl = kd.map(function(k){ return parseFloat(k[4]); });
+  var hi = kd.map(function(k){ return parseFloat(k[2]); });
+  var lo = kd.map(function(k){ return parseFloat(k[3]); });
+  var tm = kd.map(function(k){ return k[0]; });
+  function apres(ts){ for(var i=0;i<tm.length;i++) if(tm[i] >= ts) return i; return -1; }
+  var S = { n:H.length, lues:0, horsFenetre:0, invRenseignees:0, invTouchees:0,
+            jours:jours, parAction:{}, tous:null };
+  H.forEach(function(e){
+    var i = apres(e.ts);
+    if(i < 0){ S.horsFenetre++; return; }
+    S.lues++;
+    if(e.invSwing !== null && e.invSwing !== undefined && !isNaN(e.invSwing)){
+      S.invRenseignees++;
+      var haut = -Infinity, bas = Infinity;
+      for(var k=i;k<cl.length;k++){ if(hi[k] > haut) haut = hi[k]; if(lo[k] < bas) bas = lo[k]; }
+      var touchee = e.dirSwing === "sell" ? haut >= e.invSwing
+                  : e.dirSwing === "buy"  ? bas  <= e.invSwing
+                  : (haut >= e.invSwing || bas <= e.invSwing);
+      if(touchee) S.invTouchees++;
+    }
+    if(i + jours < cl.length){
+      var lbl = (e.dirSwing === "buy") ? "Achat" : (e.dirSwing === "sell") ? "Vente" : "Rien";
+      if(!S.parAction[lbl]) S.parAction[lbl] = [];
+      S.parAction[lbl].push((cl[i+jours]/cl[i] - 1) * 100);
+    }
+  });
+  var tous = [];
+  for(var i=0;i+jours<cl.length;i++) tous.push((cl[i+jours]/cl[i] - 1) * 100);
+  S.tous = { n:tous.length, moy: tous.length ? tous.reduce(function(a,b){ return a+b; },0)/tous.length : null };
+  return S;
+}
+function histStatsHtml(H){
+  var S = histStats(H, D.kd, 15);
+  if(!S || !S.lues) return "";
+  var h = "<div style='margin-top:18px'><h2>Ce que tes analyses ont donné</h2>";
+  h += "<table><tbody>";
+  h += row("Analyses enregistrées", S.n + (S.horsFenetre ? " · " + S.horsFenetre + " hors des bougies disponibles" : ""), "");
+  h += row("Invalidations SWING renseignées", S.invRenseignees === 0 ? "aucune"
+           : S.invRenseignees + " · " + S.invTouchees + " touchée(s)",
+           S.invRenseignees === 0 ? tg(["N/D","t-neu"])
+           : tg([S.invTouchees + " sur " + S.invRenseignees, S.invTouchees > S.invRenseignees/2 ? "t-org" : "t-grn"]));
+  h += "</tbody></table>";
+  h += "<table style='margin-top:10px'><thead><tr><th>Verdict swing d'alors</th>" +
+       "<th style='text-align:right'>Analyses</th><th style='text-align:right'>Prix " + S.jours + " jours après</th></tr></thead><tbody>";
+  ["Achat","Rien","Vente"].forEach(function(lbl){
+    var v = S.parAction[lbl];
+    if(!v || !v.length) return;
+    var m = v.reduce(function(a,b){ return a+b; },0)/v.length;
+    h += "<tr><td class='lbl'>" + lbl + "</td><td class='n'>" + v.length + "</td><td class='n'>" + sgn(m,2) + " %</td></tr>";
+  });
+  h += "<tr><td class='lbl'>Tous les jours (référence)</td><td class='n'>" + S.tous.n + "</td><td class='n'>" +
+       (S.tous.moy === null ? "N/D" : sgn(S.tous.moy,2) + " %") + "</td></tr>";
+  h += "</tbody></table>";
+  h += "<div class='hint'>Comparé à la moyenne de tous les jours de la même fenêtre. En dessous de dix analyses par ligne, ces chiffres ne veulent pas dire grand-chose : c'est un relevé, pas une mesure.</div></div>";
+  return h;
 }
 
 /* =================== DEPUIS TA DERNIÈRE VISITE ===================
@@ -1923,7 +2028,10 @@ function renderCm(){
   if(cmFresh(c, Date.now()))
     box.innerHTML = "<div class='note'><b>MVRV Z-score "+num(c.z,2)+"</b> ("+MVRV_BANDS[mvrvBand(c.z)].lbl+") · ratio MVRV "+num(c.mvrv,2)+
       " · prix réalisé "+(c.real!==null ? num(c.real,0)+" $" : "N/D")+" — Coin Metrics, donnée du "+
-      dateFrUTC(c.t)+". Calculés automatiquement : les deux champs de secours ci-dessous ne sont pas utilisés.</div>";
+      dateFrUTC(c.t)+"." +
+      (c.flux30 ? " Flux des plateformes sur 30 jours : <b>" + (c.flux30.net > 0 ? "+"+num(c.flux30.net,0)+" BTC entrés" : num(-c.flux30.net,0)+" BTC sortis") +
+        "</b> (7 jours : " + (c.flux7 ? (c.flux7.net > 0 ? num(c.flux7.net,0)+" BTC entrés" : num(-c.flux7.net,0)+" BTC sortis") : "N/D") + ")." : "") +
+      " Calculés automatiquement : les champs de secours ci-dessous ne sont pas utilisés.</div>";
   else if(c)
     box.innerHTML = "<div class='note warn'><b>Coin Metrics "+(c.err ? "injoignable" : "en retard")+
       ".</b> Le MVRV et le prix réalisé repassent sur ta saisie de secours ci-dessous — ou N/D si elle est vide ou périmée.</div>";
@@ -2118,6 +2226,11 @@ function buildBlock(){
     L.push("MVRV Z-score : "+num(D.cm.z,2)+" — bande « "+MVRV_BANDS[mvrvBand(D.cm.z)].lbl+" »  (donnée du "+dateFrUTC(D.cm.t)+" · Z = (capitalisation − capitalisation réalisée) ÷ écart-type de la capitalisation depuis 2010)");
     L.push("Ratio MVRV : "+num(D.cm.mvrv,2));
     L.push("Prix réalisé : "+(D.cm.real!==null ? num(D.cm.real,0)+" $" : "N/D")+"  (même date)");
+    [[D.cm.flux7,"7 jours"],[D.cm.flux30,"30 jours"]].forEach(function(f){
+      L.push("Flux exchanges "+f[1]+" : "+(f[0] ? (f[0].net > 0 ? "+"+num(f[0].net,0)+" BTC entrés sur les plateformes (pression vendeuse)"
+                                                                : num(-f[0].net,0)+" BTC sortis des plateformes")+
+             "  (jusqu'au "+dateFrUTC(f[0].t)+")" : "N/D"));
+    });
   } else {
     L.push("Coin Metrics : "+(D.cm && D.cm.err ? "injoignable ("+D.cm.err+")" : (D.cm ? "donnée trop ancienne" : "non chargé"))+
            " — valeurs de secours saisies à la main :");
@@ -2208,10 +2321,12 @@ function buildBlock(){
   var VM = (D.verdict && D.verdict.ok) ? D.verdict.mvrv : null;
   if(!VM || VM.z === null)
     slow.push("MVRV" + ((mStale && $("mMvrv").value.trim()!=="") ? " (périmé)" : ""));
-  ["mResv","mEtf1","mCbp"].forEach(function(k,i){
+  if(!(D.cm && D.cm.flux30) && (mStale || $("mResv").value.trim()===""))
+    slow.push("réserves exchanges" + ((mStale && $("mResv").value.trim()!=="") ? " (périmé)" : ""));
+  ["mEtf1","mCbp"].forEach(function(k,i){
     /* périmée = manquante : c'est le même vide, il doit compter pareil */
     if(mStale || $(k).value.trim()==="")
-      slow.push(["réserves exchanges","flux ETF","Coinbase premium"][i] +
+      slow.push(["flux ETF","Coinbase premium"][i] +
                 ((mStale && $(k).value.trim()!=="") ? " (périmé)" : ""));
   });
   if(D.fngNow===undefined) slow.push("Fear & Greed");
