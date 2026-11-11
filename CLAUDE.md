@@ -1128,6 +1128,54 @@ règle de régime qui bloquent : **c'est le gate**.
   hors tendance haussière hebdomadaire). À mesurer avant d'en parler, protocole fixé
   d'avance.
 
+### Faut-il retirer le côté ACHAT de la table ? (11 novembre 2026)
+
+Rejouable : `node etudes/achats.js`. La question est posée exactement comme elle l'a
+été pour les ventes SWING : deux variantes seulement — A, les règles actuelles ; B, les
+mêmes sans aucun achat (par le crochet `gate`, déjà testé) —, deux références
+(conserver 70/30 et 100 % BTC conservé), toutes les périodes et carences habituelles,
+et adoption seulement si B bat A **partout**, sans pire perte plus profonde.
+
+**Contrôle interne réussi** : en SWING, retirer les achats donne très exactement
+« conserver 70/30 » (+310 % et +40 %), puisque les règles actuelles n'y vendent jamais.
+
+| | A — actuelles | B — sans achat | Conserver 70/30 | 100 % BTC |
+|---|---|---|---|---|
+| SWING période 1 (carence 30) | **+489 %** | +310 % | +310 % | +442 % |
+| SWING période 2 (carence 30) | **+73 %** | +40 % | +40 % | +57 % |
+| POSITION 2012-2016 | **+3563 %** | +2754 % | +3655 % | +5221 % |
+| POSITION 2016-2020 | **+1160 %** | +815 % | +869 % | +1241 % |
+| POSITION 2020-2024 | **+555 %** | +343 % | +436 % | +623 % |
+| POSITION 2024-2026 | +14 % | +14 % | +13 % | +18 % |
+
+**Décision : le côté achat est conservé. Le critère n'est pas rempli, et de loin** —
+B perd sur les deux périodes SWING et sur trois cycles POSITION sur quatre, à toutes
+les carences. Seul le cycle en cours, incomplet, lui donne un très léger avantage avec
+une pire perte moins profonde.
+
+**Et ce n'est pas qu'un effet d'exposition.** En SWING, les règles actuelles battent
+même **100 % BTC conservé** sur les deux périodes (+489 contre +442, +73 contre +57)
+alors qu'elles partent à 70 % et n'atteignent 100 % que progressivement : l'argent a
+été mis au travail à des prix plus bas que la moyenne. En POSITION, en revanche, elles
+restent derrière 100 % BTC sur les trois cycles complets — l'outil y réduit la pire
+perte plus qu'il n'ajoute de la performance, comme déjà constaté le 15 septembre.
+
+**Comment concilier avec les mesures de signal ?** Un palier d'achat est suivi de
+rendements **inférieurs** à la moyenne à 15 et 90 jours (§14, paliers) : ce n'est donc
+pas un bon signal de **timing**. Mais racheter après une baisse augmente l'exposition à
+des prix plus bas, et cela paie sur un cycle entier. **La valeur du côté achat est une
+discipline d'accumulation, pas une prédiction.** Les deux mesures sont vraies en même
+temps, et il faut les présenter ensemble : c'est exactement le genre de nuance que le
+backtest sert à produire.
+
+**ATTENTION, limite majeure de toute cette ligne de mesures** : les trois moteurs de
+backtest tournent **sans le gate** (§10). Tout ce tableau mesure donc la chaîne
+*avant* l'étape 4, alors que le cockpit, lui, applique le gate et bloque une grande
+partie de ces achats (§14, taux de blocage). Le backtest n'a jamais mesuré le cockpit
+complet, et il ne le pourra pas tant que quatre signaux sur sept n'auront pas
+d'historique gratuit. **À dire à l'utilisateur chaque fois qu'on lui montre un chiffre
+de backtest.**
+
 ### Le taux de blocage du gate, et ce qu'il bloque (11 novembre 2026)
 
 Rejouable : `node etudes/blocage.js`. Cinq des sept signaux sont reconstituables sur
@@ -1273,11 +1321,16 @@ a été validé et ce qui ne l'a pas été.
    l'envers, et six fois sur dix son verdict dépend des deux signaux non mesurables.
 14. ~~Tester un retrait conditionnel des ventes SWING~~ — **fait le 11 novembre 2026** :
    aucune condition ne tient, l'interdiction totale reste la meilleure.
-15. **Le vrai chantier ouvert par ces trois mesures** : le côté ACHAT de la table n'a
-   de valeur sur aucun horizon (§14, paliers), et le gate ne le rattrape pas. Soit on
-   l'assume — l'outil sert à ne pas agir et à vendre dans les rares extrêmes de
-   valorisation —, soit on teste son retrait comme on l'a fait pour les ventes SWING.
-   Décision de l'utilisateur, protocole fixé d'avance.
+15. ~~Tester le retrait du côté ACHAT~~ — **fait le 11 novembre 2026** : le retirer
+   coûte cher partout, il est conservé. Sa valeur est une discipline d'accumulation,
+   pas une prédiction.
+16. **Le chantier qui reste, et le plus important** : le backtest ne mesure pas le
+   cockpit complet, parce qu'il ignore le gate. Or le gate bloque beaucoup, et il
+   filtre à l'envers sur sa part mesurable. Tant qu'on ne sait pas le rejouer, tout
+   chiffre de backtest décrit une chaîne que l'utilisateur n'utilise pas vraiment.
+   Deux issues : trouver un historique gratuit pour l'open interest et le long/short,
+   ou **décider de simplifier le gate** pour qu'il ne repose que sur des signaux
+   mesurables. Décision de l'utilisateur.
 
 ---
 
