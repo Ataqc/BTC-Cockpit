@@ -168,9 +168,24 @@ attendre().then(function(){
      "le premium Coinbase est calculé tout seul à partir des deux prix (+1,000 % attendu)");
   ok(/Coinbase premium gap : \+1,000 % \(Coinbase/.test(bloc) && /automatique, hors saisie/.test(bloc),
      "le bloc transmet le premium calculé et dit qu'il ne vient pas d'une saisie");
-  var sig7 = win.gateSignals("swing")[6];
-  ok(/premium Coinbase \+1,000 %/.test(sig7.txt) && sig7.txt.indexOf("(saisie)") < 0,
-     "le 7e signal du gate lit le premium automatique");
+  var SIGS = win.gateSignals("swing");
+  function signal(nom){
+    for(var i=0;i<SIGS.length;i++) if(SIGS[i].n === nom) return SIGS[i];
+    return null;
+  }
+  var sPrem = signal("Premium Coinbase");
+  ok(!!sPrem && sPrem.vote === true && /\+1,000 %/.test(sPrem.txt) &&
+     /Coinbase contre Binance/.test(sPrem.txt) && sPrem.dir === "buy",
+     "le premium est un signal à part entière du gate, calculé et non saisi");
+  var votants = SIGS.filter(function(s){ return s.vote; }).map(function(s){ return s.n; });
+  ok(votants.length === 4 &&
+     votants.join(" | ") === "Momentum / volume | Funding | Flux des plateformes | Premium Coinbase",
+     "quatre signaux confirment, et ce sont les quatre qui ont été mesurés");
+  ok(SIGS.filter(function(s){ return !s.vote; }).length === 5 &&
+     signal("Fear & Greed").vote === false && signal("Liquidations 24 h").vote === false &&
+     signal("Flux ETF spot US").vote === false,
+     "Fear & Greed, les liquidations, le long/short, le croisement OI et les flux ETF restent du contexte");
+  ok(win.GATE_MIN === 2, "le gate exige 2 signaux alignés sur les 4 qui confirment");
   ok(/Métriques LENTES manquantes \([0-9]+\) : (?!.*Coinbase premium)/.test(bloc),
      "le premium n'est plus compté parmi les métriques lentes manquantes");
 
@@ -449,11 +464,12 @@ function pageAvecCoinMetrics(){
        bloc.indexOf("NaN") < 0 && bloc.indexOf("undefined") < 0,
        "le bloc transmet à l'IA le MVRV et le prix réalisé calculés, avec leur source");
     ok(w2.localStorage.getItem("btc_cm") !== null, "la valeur du jour est gardée sur l'appareil : un seul téléchargement par jour");
-    var flux = w2.D.cm.flux30, signal7 = V.decSwing.signals[6];
+    var flux = w2.D.cm.flux30, sFlux = null;
+    V.decSwing.signals.forEach(function(s){ if(s.n === "Flux des plateformes") sFlux = s; });
     ok(!!flux && flux.jours === 30 && flux.net < 0,
        "les flux des plateformes sur 30 jours sont calculés (ici plus de sorties que d'entrées)");
-    ok(/flux exchanges 30 j/.test(signal7.txt) && signal7.dir === "buy",
-       "le 7e signal lit les flux automatiques au lieu de la saisie « réserves »");
+    ok(!!sFlux && sFlux.vote === true && /BTC retirés sur 30 jours/.test(sFlux.txt) && sFlux.dir === "buy",
+       "les flux des plateformes sont un signal à part entière du gate, lu automatiquement");
     ok(/Flux exchanges 30 jours : .*BTC sortis des plateformes/.test(bloc) &&
        /Flux exchanges 7 jours :/.test(bloc),
        "le bloc transmet les soldes de flux sur 7 et 30 jours, avec leur sens");

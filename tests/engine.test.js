@@ -597,6 +597,21 @@ var zP = C.mvrvZSeries(SP.mc, SP.mv), eqP = 0;
 ok(eqP === 3, "le backtest POSITION note chaque jour EXACTEMENT comme le cockpit, MVRV compris (" + eqP + "/3 identiques)");
 C.D = {}; C.__set("mMvrv", ""); C.__set("mDate", "");
 
+g("Le gate ne compte que les signaux mesurables");
+ok(C.GATE_MIN === 2, "deux signaux alignés requis parmi les quatre qui confirment");
+ok(C.TIERS[C.gateApply(5, 3.0, 0, 0).i].dir === "hold" && C.gateApply(5, 3.0, 0, 0).rule === "gate",
+   "aucun signal aligné : action plafonnée à « Rien »");
+ok(C.gateApply(5, 3.0, 2, 0).i === 5 && C.gateApply(5, 3.0, 2, 0).rule === null,
+   "deux alignés et aucun contraire : l'action passe entière");
+ok(C.gateApply(5, 3.0, 2, 3).i === C.softer(5) && C.gateApply(5, 3.0, 2, 3).rule === "risque",
+   "plus de contraires que d'alignés : action réduite d'un cran, jamais amplifiée");
+ok(C.gateApply(2, 5.0, 0, 9).i === 2 && C.gateApply(2, 5.0, 0, 9).rule === null,
+   "un palier « Rien » n'est ni bloqué ni réduit : le gate ne crée jamais d'action");
+/* Le gate du cockpit doit lire la même fonction que les backtests */
+ok((source.split("function gateApply(").length - 1) === 1 &&
+   (source.split("gateApply(").length - 1) >= 3,
+   "gateApply n'est définie qu'une fois et sert au cockpit comme aux backtests");
+
 g("Le verdict dit pourquoi l'action est bloquée");
 /* D vide : aucun signal du gate n'a de donnée, donc aucun ne confirme rien. */
 C.D = {};
@@ -675,6 +690,19 @@ ok(vues.length > 0 &&
    vues.every(function(v){ return dates[v[0]] && (v[1] === "buy" || v[1] === "sell"); }) &&
    vues.every(function(v){ return v[0] <= SP.t[SP.t.length - 2]; }),
    "le gate est consulté à la clôture qui décide, avec le sens de l'action, jamais le dernier jour");
+/* Le crochet qui renvoie un décompte rejoue la chaîne entière, filtre de risque compris */
+var gCompte = C.simulatePosition(SP, 1000, 70, 0.1, 7, 0, function(){ return {a:2, c:0}; });
+ok(memePasse(gCompte.runs.gate.eq, gTout.runs.gate.eq),
+   "deux alignés et aucun contraire : même résultat qu'un gate qui dit oui");
+var gRisque = C.simulatePosition(SP, 1000, 70, 0.1, 7, 0, function(){ return {a:2, c:3}; });
+var tailleG = function(R){ return R.runs.gate.trades.map(function(t){ return t.qty; }); };
+ok(gRisque.runs.gate.trades.length > 0 &&
+   tailleG(gRisque).join(",") !== tailleG(gCompte).join(","),
+   "plus de contraires que d'alignés : le filtre de risque réduit les tailles, dans le backtest aussi");
+var gBloque = C.simulatePosition(SP, 1000, 70, 0.1, 7, 0, function(){ return {a:1, c:0}; });
+ok(gBloque.runs.gate.trades.length === 0,
+   "un seul signal aligné : le gate bloque, comme dans le cockpit");
+
 var gSwing = C.simulate(KL, 365, 70, 0.1, 7, 0, function(){ return false; });
 ok(gSwing.list.length === 3 && gSwing.runs.gate.trades.length === 0 && gSwing.runs.regime.trades.length > 0,
    "le gate s'applique aussi au moteur SWING journalier");

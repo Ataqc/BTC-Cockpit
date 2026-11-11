@@ -357,10 +357,21 @@ Dans cet ordre, sans exception :
      n'est atteint que 4,4 % des jours (§14). Cette règle ne s'applique donc
      presque jamais. Desserrer le seuil a donné un résultat **mixte** entre les
      deux périodes testées : ne pas le faire sans nouvelle validation.
-4. **Gate de confirmation** — au moins **3 des 7 signaux** doivent aller dans le
-   sens de l'action, sinon elle est plafonnée à « Rien ».
+4. **Gate de confirmation** — au moins **2 des 4 signaux qui confirment** doivent
+   aller dans le sens de l'action, sinon elle est plafonnée à « Rien ».
+   **Changé le 11 novembre 2026, sur décision de l'utilisateur** (voir §14) : avant,
+   c'était 3 sur 7, dont trois signaux sans aucun historique gratuit et un toujours
+   N/D. Le gate était donc **impossible à rejouer et à valider**, et la part qu'on
+   savait mesurer filtrait à l'envers. Les quatre retenus — momentum/volume, funding,
+   flux des plateformes, premium Coinbase — sont les seuls dont le sens a été mesuré.
+   Seuil 2 sur 4 : l'équivalent proportionnel de l'ancien 3 sur 7 (43 %).
 5. **Filtre de risque** — si les signaux contraires sont plus nombreux que les
-   alignés, l'action est réduite d'un cran (jamais amplifiée).
+   alignés, l'action est réduite d'un cran (jamais amplifiée). Même population de
+   quatre signaux.
+
+Les étapes 4 et 5 vivent dans **une seule fonction pure, `gateApply`**, appelée par le
+cockpit et par les trois backtests. Depuis ce jour, **le backtest rejoue la chaîne
+entière**, étape 4 comprise — ce qu'il n'avait jamais pu faire (§10, §14).
 
 Les étapes 2 et 3 vivent dans **une seule fonction pure**, `tierRules`, appelée par
 le cockpit (`decide`) et par les trois backtests. Le 15 septembre 2026, elle a
@@ -369,8 +380,15 @@ autrement que le cockpit (prix sous l'EMA 50 au lieu d'EMA 50 sous EMA 200) — 
 effet sur les résultats réels (§14), mais le backtest ne mesurait pas exactement la
 règle du cockpit.
 
-**Les 7 signaux du gate** : momentum/volume, croisement prix/OI, funding,
-long/short ratio, liquidations (toujours N/D), Fear & Greed, flux ETF/on-chain.
+**Les quatre signaux qui CONFIRMENT** : momentum/volume, funding, flux des
+plateformes, premium Coinbase. Tous automatiques, tous mesurés (§14).
+
+**Les cinq qui sont du CONTEXTE** — affichés dans la page et dans le bloc, marqués
+comme tels, jamais comptés : croisement prix/OI et long/short (aucun historique
+gratuit au-delà de 30 jours), liquidations (aucune source, toujours N/D), flux ETF
+(saisie manuelle, aucun historique), Fear & Greed (mesuré deux fois, mauvais sens sur
+les deux moitiés de l'historique). **Ne pas les réintroduire dans le compte sans une
+mesure qui le justifie.**
 
 **Les règles des signaux mesurables vivent dans `SIG`** (funding, Fear & Greed, flux,
 premium) depuis le 11 novembre 2026 : une seule définition, appelée par le cockpit et
@@ -452,7 +470,12 @@ télécharger l'historique du funding depuis le navigateur sans alourdir l'ongle
 - Délai de carence compté en **temps réel** : 7 jours valent 7 jours en 1 J comme en 4 H
 
 **Ce qu'il ne teste pas, et pourquoi :**
-- Le gate des 7 signaux — pas d'historique gratuit pour funding / OI / liquidations
+- Le gate, dans l'onglet Backtest de la page — mais **les études du dépôt le rejouent**
+  depuis le 11 novembre 2026 (`etudes/chaine-complete.js`), parce qu'il ne compte plus
+  que des signaux reconstituables. Limite restante, de données et non de principe :
+  le funding Binance commence le **10 septembre 2019**, donc la chaîne complète n'est
+  rejouable qu'à partir de cette date. Tous les chiffres antérieurs du §14 décrivent
+  une chaîne **sans l'étape 4** — le dire chaque fois qu'on les cite
 - En POSITION : les mèches hebdomadaires (divergences lues sur les clôtures) et le
   cours d'ouverture (exécution au prix de référence du lendemain)
 - Les années 2010-2012 reposent sur un marché minuscule : lire POSITION cycle par
@@ -488,11 +511,13 @@ qu'ils sont dans l'onglet Backtest et nulle part ailleurs.
   ensuite. En cas de recalibrage, imposer une période de validation distincte de
   celle utilisée pour régler.
 - Les liquidations restent N/D. Ne pas inventer de substitut.
-- **Le signal Fear & Greed du gate a le mauvais sens**, sur les deux moitiés de
-  l'historique, dans deux études indépendantes (20 septembre et 11 novembre 2026), et
-  **le retirer améliore le gate mesurable à chaque carence** des deux seuls cycles où
-  la comparaison est possible (§14). Il reste en place tant que l'utilisateur n'a pas
-  tranché : c'est une règle de décision, pas un détail d'affichage.
+- **Fear & Greed a le mauvais sens** sur les deux moitiés de l'historique, dans deux
+  études indépendantes (20 septembre et 11 novembre 2026). **Retiré du gate le
+  11 novembre 2026**, sur décision de l'utilisateur ; il reste affiché comme contexte.
+- **Le gate n'a jamais montré de valeur mesurable**, dans aucune de ses versions
+  vérifiables (§14). Sa version actuelle à 4 signaux est neutre en SWING et
+  légèrement positive en POSITION. Elle a été adoptée pour que la chaîne devienne
+  **rejouable**, pas pour un gain de performance : ne pas lui en prêter un.
 - **L'intérêt des ventes POSITION dépend de ce que tu fais de l'argent.** Sans sortie
   vers l'euro elles gagnent ; avec 30 % d'impôt, elles perdent sur trois cycles sur
   quatre en valeur de portefeuille, mais gagnent encore sur trois cycles sur quatre si
@@ -517,7 +542,7 @@ qu'ils sont dans l'onglet Backtest et nulle part ailleurs.
     minimal simulé. Les tests appellent donc les **vraies** fonctions des vraies
     pages : ne recopie jamais une formule dans un test, un test qui recopie ce
     qu'il vérifie ne vérifie rien.
-  - `tests/engine.test.js` (237 vérifications, zéro dépendance) : identités
+  - `tests/engine.test.js` (246 vérifications, zéro dépendance) : identités
     mathématiques (moyenne mobile sur série constante = la constante, RSI sur série
     croissante = 100, décroissante = 0, plate = 50), chaîne de décision, péremption,
     **unicité des formules** (chaque indicateur défini une seule fois dans la page)
@@ -548,7 +573,12 @@ qu'ils sont dans l'onglet Backtest et nulle part ailleurs.
     **crochet de vente SWING conditionnelle** (par défaut la règle du 8 septembre est
     intacte ; un prédicat qui refuse donne exactement le même résultat ; un prédicat
     qui autorise fait apparaître des ventes — sans quoi le test ne mordrait pas).
-  - `tests/page.test.js` (101 vérifications, `jsdom`) : charge `index.html` entière
+    Depuis le changement de gate : `gateApply` (seuil, blocage, filtre de risque,
+    un palier « Rien » jamais transformé en action, une seule définition partagée)
+    et le crochet des moteurs qui rejoue la chaîne entière quand il renvoie un
+    décompte. Côté page : les quatre signaux qui votent sont nommés et comptés, les
+    cinq autres sont marqués comme contexte.
+  - `tests/page.test.js` (104 vérifications, `jsdom`) : charge `index.html` entière
     avec un faux réseau et vérifie le rendu, les scores, le bloc généré, la
     péremption, la bascule des onglets (par clic et par adresse), un backtest
     complet, le bilan de visite (référence conservée pendant la visite, jamais
@@ -646,6 +676,10 @@ qu'ils sont dans l'onglet Backtest et nulle part ailleurs.
   analyses passées (§6), cockpit en plein écran depuis l'écran d'accueil d'un iPhone,
   prompt d'analyse aligné sur les backtests, étude du gate et calibration du régime
   (§14) — aucune règle de décision modifiée
+- **11 novembre 2026, décision de l'utilisateur** : le gate ne compte plus que les
+  **quatre signaux mesurables** (§9) ; Fear & Greed, le croisement prix/OI, le
+  long/short, les liquidations et les flux ETF deviennent du contexte. Conséquence
+  recherchée : **la chaîne complète est rejouable** depuis septembre 2019 (§14)
 - **11 novembre 2026** : coûts réels dans les backtests (frais **et** impôt, §10),
   gate enfin mesuré de bout en bout (§14), premium Coinbase automatique (§5), dossier
   `etudes/` rejouable (§12) — **aucune règle de décision modifiée**. Sept semaines de
@@ -1128,7 +1162,42 @@ règle de régime qui bloquent : **c'est le gate**.
   hors tendance haussière hebdomadaire). À mesurer avant d'en parler, protocole fixé
   d'avance.
 
-### Un gate qui ne reposerait que sur des signaux mesurables (11 novembre 2026)
+### LE GATE A CHANGÉ — et la chaîne complète est enfin rejouable (11 novembre 2026)
+
+**Décision prise par l'utilisateur** après l'étude ci-dessous : le gate ne compte plus
+que **2 signaux alignés sur les 4 qui confirment** (momentum/volume, funding, flux des
+plateformes, premium Coinbase). Les cinq autres deviennent du contexte affiché.
+Motif assumé : **la vérifiabilité, pas la performance.** Les mesures donnaient le
+nouveau gate neutre ; ce qu'on achète, c'est qu'une règle de décision cesse d'être
+invérifiable.
+
+Premier rejeu de la chaîne ENTIÈRE — étapes 1 à 5 — par `node etudes/chaine-complete.js`,
+depuis le 10/09/2019 (début de l'historique du funding). Écart de la chaîne complète
+contre la chaîne sans gate, carences 7 / 30 / 60 jours :
+
+| | fenêtre complète | seconde moitié |
+|---|---|---|
+| SWING journalier | −3 / −0 / +1 pts | −2 / +0 / +0 pts |
+| SWING 4 heures (le score exact du cockpit) | −11 / +8 / +34 pts | −7 / −5 / −5 pts |
+| POSITION 2020-2024 | **+9 / +49 / +18 pts** | — |
+| POSITION 2024-2026 | −2 / −0 / +0 pts | — |
+
+**Ce que le gate laisse passer** : 38 ordres sur 50 en SWING journalier (76 %), 23 sur
+25 en POSITION (92 %). **Le nouveau gate est donc beaucoup moins bloquant que l'ancien**,
+qui exigeait 3 signaux sur 7 alors que trois d'entre eux étaient structurellement
+absents ou N/D. L'utilisateur verra des actions plus souvent — c'est la conséquence
+directe, et attendue, de sa décision.
+
+**Vérification le jour même, à 74 726 $** : les deux horizons proposaient « Achat
+10-15 % », et le gate a bloqué — 1 signal aligné sur 4 (les flux plaident pour
+accumuler, le momentum et le premium pour alléger, le funding est neutre). Le nouveau
+gate n'ouvre donc pas les vannes : il rend le blocage **lisible et vérifiable**.
+
+**Ce qui reste hors de portée** : avant septembre 2019 le funding n'existe pas, donc
+la chaîne complète n'est pas rejouable. Tous les chiffres du §14 antérieurs à cette
+date décrivent une chaîne **sans l'étape 4** — à redire chaque fois qu'on les cite.
+
+### L'étude qui a conduit à ce changement (11 novembre 2026)
 
 Rejouable : `node etudes/gate-simplifie.js`. Le gate actuel n'est pas rejouable : il
 n'entre dans aucune comparaison. On compare « aucun gate » — ce que mesurent tous les
@@ -1374,12 +1443,18 @@ a été validé et ce qui ne l'a pas été.
 15. ~~Tester le retrait du côté ACHAT~~ — **fait le 11 novembre 2026** : le retirer
    coûte cher partout, il est conservé. Sa valeur est une discipline d'accumulation,
    pas une prédiction.
-16. **Trancher le sort du gate** — la question est désormais instruite (étude du
-   11 novembre 2026 ci-dessus) : ne rien changer, retirer Fear & Greed, ou le remplacer
-   par les quatre signaux mesurables. Aucune option n'est soutenue par un gain chiffré ;
-   la troisième rendrait le cockpit entièrement rejouable. **Décision de l'utilisateur,
-   et tant qu'elle n'est pas prise, tout chiffre de backtest décrit une chaîne sans
-   l'étape 4 — le dire à chaque fois.**
+16. ~~Trancher le sort du gate~~ — **fait le 11 novembre 2026** : l'utilisateur a choisi
+   les quatre signaux mesurables (§9, §14). La chaîne complète est rejouable depuis
+   septembre 2019.
+17. **Rejouer les grands backtests de septembre avec le gate**, maintenant que c'est
+   possible — mais seulement sur la part postérieure à septembre 2019. Les conclusions
+   du 8 et du 15 septembre 2026 portent sur des périodes plus longues : elles ne sont
+   pas invalidées, elles sont **incomplètes sur leur fin de période**.
+18. **Apprendre le gate au robot d'alerte** : trois de ses quatre signaux sont
+   accessibles depuis les serveurs GitHub (momentum par les bougies, flux par Coin
+   Metrics, premium par Coinbase) ; seul le funding est bloqué (HTTP 451). Le robot
+   pourrait donc dire « gate franchi », « gate bloqué » ou « indéterminé » au lieu de
+   « palier candidat ».
 
 ---
 
@@ -1540,8 +1615,8 @@ Leçons de ce passage :
    e-mail réelle**, le dépôt est public :
    `git config user.name "Ataqc"` et
    `git config user.email "Ataqc@users.noreply.github.com"`.
-4. **Dépendances de test** : `npm ci`, puis `npm test`. Attendu : moteur 237,
-   robot 40, page 101 — **378 vérifications, 0 échec**. Un échec ici veut dire que
+4. **Dépendances de test** : `npm ci`, puis `npm test`. Attendu : moteur 246,
+   robot 40, page 104 — **390 vérifications, 0 échec**. Un échec ici veut dire que
    l'environnement diffère : le diagnostiquer avant toute modification.
 5. **Connexion GitHub** : `gh auth status`. Si l'utilisateur n'est pas connecté,
    lui demander de faire lui-même `gh auth login` (navigateur, compte `Ataqc`) —
