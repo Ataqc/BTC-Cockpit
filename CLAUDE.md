@@ -1055,6 +1055,67 @@ achats par deux ou trois pour un résultat neutre ou moins bon.
   liquidations. **Le vrai gate à 3 sur 7 reste non mesurable** — ces tableaux parlent
   de gates réduits, pas de celui du cockpit.
 
+### Pourquoi le cockpit ne dit presque jamais d'agir (11 novembre 2026)
+
+Rejouable : `node etudes/paliers.js`. Question posée par l'utilisateur : « depuis le
+début les conseils sont soit légère survente, soit surachat non actionnable, alors
+que ces détections étaient des opportunités ».
+
+**Le score, lui, est actionnable.** Sur 18 669 bougies 4 heures depuis mai 2018, un
+palier d'action sort **36,3 % du temps** ; après le retrait des ventes SWING, il reste
+20,1 % de bougies avec un achat candidat. Depuis le 20 septembre 2026, **23 jours sur
+53** avaient un palier candidat (19 achats, 4 ventes). L'utilisateur n'en a vu aucun :
+le silence vient de la chaîne, pas du score.
+
+**Mais les paliers sont à l'envers**, et c'est mesuré. Rendement moyen des 15 jours
+suivants, par palier, contre +1,9 % pour l'ensemble des bougies :
+
+| Palier (score brut) | Part du temps | Rendement 15 j |
+|---|---|---|
+| Vente 20-30 % | 2,3 % | +7,4 % |
+| Vente 10-15 % | 13,9 % | +4,4 % |
+| Rien — léger surachat | 22,1 % | +1,6 % |
+| Rien — légère survente | 41,6 % | +1,4 % |
+| Achat 10-15 % | 17,2 % | +1,1 % |
+| Achat 25-35 % | 2,9 % | **−1,6 %** |
+
+Plus le score est bas, **moins** les quinze jours suivants rapportent. Les « occasions »
+que l'étiquette laisse espérer ne sont pas là, en moyenne.
+
+En POSITION (5 546 jours depuis 2011, horizon 90 jours, moyenne générale +36,3 %) :
+vente 20-30 % → **−12,8 %** (1,3 % des jours, le seul palier qui tienne sa promesse) ;
+vente 10-15 % → +94,1 % (vend beaucoup trop tôt) ; Rien surachat → +46,4 % ; Rien
+survente → +41,1 % ; achat 10-15 % → +13,0 % ; achat 25-35 % → +21,0 %. **Le côté
+achat est inversé là aussi.**
+
+**Les sept semaines vécues par l'utilisateur le confirment.** Du 20/09 au 11/11/2026,
+le bitcoin passe de 81 178 $ à 74 570 $ (−8,1 %), avec un sommet à 86 620 $ le 21/09
+(−13,9 % depuis). Les 19 achats candidats ont été suivis de **−4,8 %** à 15 jours,
+contre −3,6 % pour tous les jours de la période : agir aurait coûté davantage que ne
+rien faire. **Ce qui aurait payé**, ce sont les 4 ventes candidates des 21-24 septembre
+à 84-86 k, que la règle du 8 septembre 2026 interdit en SWING.
+
+**Ce que le cockpit affichait le 11/11/2026 à 74 528 $** : SWING score 3,05 → achat
+candidat **plafonné par le gate** (2 signaux sur 7, 3 requis) ; POSITION score 3,25 →
+achat candidat plafonné par le gate (1 sur 7). Ce jour-là, ce n'est ni le score ni la
+règle de régime qui bloquent : **c'est le gate**.
+
+**Trois conséquences à retenir :**
+- **L'étiquette ment par omission.** « Rien — légère survente non actionnable » laisse
+  croire à un signal détecté puis ignoré. Il faudrait lire, dans le titre du verdict :
+  « achat candidat, bloqué par le gate ». C'est un changement d'affichage, pas de règle.
+- **Le taux de blocage du gate n'a jamais été mesuré.** Il exige 3 signaux sur 7 alors
+  que les liquidations sont **toujours** N/D (donc 3 sur 6 au mieux) et que le 7e peut
+  désormais être à égalité (flux contre premium). Cinq des sept signaux sont calculables
+  sur l'historique (momentum/volume se déduit des bougies) : on peut donc encadrer ce
+  taux. **C'est la mesure manquante la plus utile.**
+- **Desserrer ne réglerait rien.** Sur les sept semaines comme sur huit ans, agir plus
+  souvent du côté achat aurait coûté. Ce qui a coûté cette fois-ci, c'est de **ne pas
+  vendre** à 86 k. La question ouverte n'est donc pas « le gate est-il trop sévère »
+  mais « le retrait des ventes SWING doit-il être conditionnel » (par exemple autorisé
+  hors tendance haussière hebdomadaire). À mesurer avant d'en parler, protocole fixé
+  d'avance.
+
 ### Autres cryptos : ce qui se transpose, et ce qui ne se transpose pas (11 novembre 2026)
 
 Question posée par l'utilisateur : pouvoir cliquer sur BTC, ETH ou TAO et obtenir la
@@ -1116,6 +1177,13 @@ a été validé et ce qui ne l'a pas été.
    perte prime.
 11. **Multi-cryptos** : cockpit technique pour n'importe quelle paire Binance, puis
    étude de calibration par actif pour l'horizon POSITION (voir ci-dessus).
+12. **Dire dans le verdict pourquoi l'action a été bloquée**, au lieu de « non
+   actionnable » : affichage seulement, aucune règle touchée.
+13. **Mesurer le taux de blocage du gate** (cinq signaux sur sept sont calculables,
+   les deux autres s'encadrent). C'est ce qui manque pour juger la sévérité réelle.
+14. **Tester un retrait conditionnel des ventes SWING** : l'interdiction totale a coûté
+   14 % en septembre-novembre 2026 alors qu'elle gagne sur huit ans. Protocole fixé
+   d'avance, et décision de l'utilisateur.
 
 ---
 

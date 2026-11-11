@@ -9,12 +9,22 @@ const path = require("path");
 const CACHE = path.join(__dirname, ".cache");
 const JOUR = 86400000;
 
-async function json(url){
-  const r = await fetch(url, { signal: AbortSignal.timeout(60000) });
-  if(!r.ok) throw new Error("HTTP " + r.status + " sur " + url.split("?")[0]);
-  return r.json();
-}
 const dodo = ms => new Promise(s => setTimeout(s, ms));
+
+async function json(url, essais){
+  /* une coupure réseau ne doit pas perdre un téléchargement de plusieurs minutes */
+  essais = essais || 4;
+  for(let n = 1; ; n++){
+    try{
+      const r = await fetch(url, { signal: AbortSignal.timeout(60000) });
+      if(!r.ok) throw new Error("HTTP " + r.status + " sur " + url.split("?")[0]);
+      return await r.json();
+    }catch(e){
+      if(n >= essais) throw e;
+      await dodo(1500 * n);
+    }
+  }
+}
 
 async function cache(nom, charge){
   const f = path.join(CACHE, nom + ".json");
