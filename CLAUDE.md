@@ -591,7 +591,7 @@ qu'ils sont dans l'onglet Backtest et nulle part ailleurs.
     seulement quand il a de quoi être lu. Depuis le 11 novembre 2026 : premium
     Coinbase calculé à partir des deux prix, écrit dans le bloc avec sa source, lu par
     le 7e signal, et retiré de la liste des métriques lentes manquantes.
-  - `tests/robot.test.js` (38 vérifications, zéro dépendance) : période comparée
+  - `tests/robot.test.js` (50 vérifications, zéro dépendance) : période comparée
     par le robot d'alerte, bougie en cours écartée, aucun palier POSITION ni
     aucune vente, alerte réelle sur une chute synthétique, notification sans
     balise HTML, échec franc si l'historique est trop court. Depuis le
@@ -601,7 +601,12 @@ qu'ils sont dans l'onglet Backtest et nulle part ailleurs.
     20 septembre 2026 : mèche sous un support → rien, clôture 2 % plus bas → alerte ;
     palier d'un « Rien » à un autre → rien, palier actionnable → alerte ; régime
     signalé une seule fois, une fois tenu ; en semaine seuls les « à regarder »
-    notifient, le lundi part toujours, même sans rien à signaler.
+    notifient, le lundi part toujours, même sans rien à signaler. Depuis le
+    11 novembre 2026 : **le gate encadré** — funding toujours N/D, flux et premium
+    lus et traduits par `SIG`, « franchi » seulement si le seuil est déjà atteint
+    sans le funding, « bloqué » seulement si le funding ne peut plus rattraper,
+    sources manquantes jamais inventées, et pas un mot sur le gate sans palier
+    swing signalé.
   - **Ce que les tests ne voient pas : la mise en page.** jsdom ne calcule aucune
     largeur. Toute modification d'affichage se vérifie dans un vrai navigateur à
     **390, 768, 1024 et 1280 px** : aucun tableau ne doit dépasser de sa carte, et
@@ -1450,11 +1455,7 @@ a été validé et ce qui ne l'a pas été.
    possible — mais seulement sur la part postérieure à septembre 2019. Les conclusions
    du 8 et du 15 septembre 2026 portent sur des périodes plus longues : elles ne sont
    pas invalidées, elles sont **incomplètes sur leur fin de période**.
-18. **Apprendre le gate au robot d'alerte** : trois de ses quatre signaux sont
-   accessibles depuis les serveurs GitHub (momentum par les bougies, flux par Coin
-   Metrics, premium par Coinbase) ; seul le funding est bloqué (HTTP 451). Le robot
-   pourrait donc dire « gate franchi », « gate bloqué » ou « indéterminé » au lieu de
-   « palier candidat ».
+18. ~~Apprendre le gate au robot d'alerte~~ — **fait le 11 novembre 2026** (§15).
 
 ---
 
@@ -1482,10 +1483,25 @@ fonction que le bilan de visite. Aucune mémoire entre deux passages, aucun comm
 | `ntfy.sh` | en service |
 | `community-api.coinmetrics.io` | 200 — vérifié sur les passages du 16 au 20/09/2026, MVRV lu chaque nuit |
 
-**Ce qu'il surveille** : palier swing *candidat* (après le retrait des ventes swing,
-mais avant le gate de confirmation, illisible sans les dérivés), régime 1 J ou 1 S,
-nouvelle divergence confirmée, franchissement de l'EMA 200, cassure du support ou de
-la résistance, bande MVRV. Le message précise qu'un palier swing est candidat.
+**Ce qu'il surveille** : palier swing, régime 1 J ou 1 S, nouvelle divergence
+confirmée, franchissement de l'EMA 200, cassure du support ou de la résistance,
+bande MVRV.
+
+**Le gate, depuis le 11 novembre 2026.** Le robot ne dit plus « action candidate,
+gate illisible » : il lit **trois des quatre signaux qui confirment** — momentum
+(déduit des bougies), flux des plateformes (Coin Metrics) et premium Coinbase (API
+publique, joignable depuis les serveurs GitHub). Seul le **funding** reste bloqué
+(fapi.binance.com, HTTP 451 depuis les États-Unis). Il **encadre** donc, il ne tranche
+jamais à la place du cockpit :
+- alignés ≥ `GATE_MIN` parmi les lisibles → **franchi à coup sûr** ;
+- alignés + inconnus < `GATE_MIN` → **bloqué à coup sûr** — le funding ne peut plus
+  rattraper, le cockpit ramènera l'action à « Rien » ;
+- entre les deux → **indéterminé**, et le message le dit : c'est le funding qui
+  tranchera, il faut ouvrir le cockpit.
+Aucune règle n'est recopiée : les sens viennent de `SIG`, le seuil de `GATE_MIN`.
+Premier essai réel le 11/11/2026 : « INDÉTERMINÉ — 1 aligné et 2 contraires sur les
+3 signaux lisibles d'ici », ce que le cockpit confirmait au même moment (1 sur 4,
+funding neutre).
 
 **Politique de notification — revue le 20 septembre 2026.** Les cinq premières nuits
 réelles ont toutes donné une notification. Rejoué sur trois ans de bougies réelles,
@@ -1616,7 +1632,7 @@ Leçons de ce passage :
    `git config user.name "Ataqc"` et
    `git config user.email "Ataqc@users.noreply.github.com"`.
 4. **Dépendances de test** : `npm ci`, puis `npm test`. Attendu : moteur 246,
-   robot 40, page 104 — **390 vérifications, 0 échec**. Un échec ici veut dire que
+   robot 50, page 104 — **400 vérifications, 0 échec**. Un échec ici veut dire que
    l'environnement diffère : le diagnostiquer avant toute modification.
 5. **Connexion GitHub** : `gh auth status`. Si l'utilisateur n'est pas connecté,
    lui demander de faire lui-même `gh auth login` (navigateur, compte `Ataqc`) —

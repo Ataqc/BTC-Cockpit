@@ -93,6 +93,65 @@ ok(/changement/.test(m.titre) && /\$/.test(m.titre), "le titre donne le prix et 
 ok(m.priorite === 4, "une alerte « à regarder » part en priorité haute");
 ok(/Ouvre le cockpit/.test(m.corps), "la notification renvoie vers le cockpit pour le tableau complet");
 
+/* ---------- le gate, vu par le robot ----------
+   Trois des quatre signaux qui confirment sont lisibles depuis un serveur GitHub ;
+   le funding ne l'est pas. Le robot doit donc ENCADRER, jamais trancher à la place
+   du cockpit. Données SYNTHÉTIQUES : on teste la mécanique, pas un vrai marché. */
+function fluxRows(entre, sort){
+  var r = [];
+  for(var i=0;i<40;i++)
+    r.push({ time: new Date(AUJ - (39-i)*JOUR).toISOString(), CapMrktCurUSD:"1", CapMVRVCur:"1",
+             FlowInExNtv:String(entre), FlowOutExNtv:String(sort) });
+  return r;
+}
+function bougiesCb(prixCb){
+  var o = [];
+  for(var i=0;i<60;i++) o.push([Math.floor((AUJ - i*JOUR)/1000), 1, 1, 1, prixCb, 1]);
+  return o;
+}
+var CG = sandbox.load("index.html");
+var dG = { kd: C.closedOnly(brut.kd) };
+var clotureG = parseFloat(dG.kd[dG.kd.length-1][4]);
+
+/* sorties > entrées = « accumuler » ; Coinbase 1 % au-dessus de Binance = « accumuler » */
+var G1 = robot.etatGate(CG, dG, { rows: fluxRows(10, 100) }, bougiesCb(clotureG * 1.01));
+ok(G1.dirs.funding === null, "le funding reste N/D : fapi.binance.com est bloqué depuis les serveurs GitHub");
+ok(G1.dirs.flux === "buy" && G1.dirs.prem === "buy",
+   "flux et premium sont lus et traduits par les règles de la page");
+var r1 = G1.pour("buy");
+ok(r1.alignes >= 2 && r1.inconnus === 1 && r1.verdict === "franchi",
+   "deux signaux alignés sur les trois lisibles : le gate est franchi à coup sûr, le funding ne peut rien y changer");
+ok(robot.phraseGate(CG, G1, "buy").indexOf("FRANCHI") >= 0 &&
+   /funding n'est pas lisible/.test(robot.phraseGate(CG, G1, "buy")),
+   "la phrase dit « franchi » et avoue que le funding manque");
+
+/* entrées > sorties et Coinbase sous Binance : les deux plaident pour alléger */
+var G2 = robot.etatGate(CG, dG, { rows: fluxRows(100, 10) }, bougiesCb(clotureG * 0.99));
+var r2 = G2.pour("buy");
+ok(r2.alignes <= 1 && (r2.alignes + r2.inconnus < CG.GATE_MIN ? r2.verdict === "bloque" : r2.verdict === "indetermine"),
+   "signaux contraires : le robot annonce « bloqué » seulement si le funding ne peut plus rattraper");
+ok(G2.pour("sell").alignes >= CG.GATE_MIN && G2.pour("sell").verdict === "franchi",
+   "les mêmes signaux franchissent le gate dans l'autre sens");
+
+/* Coin Metrics et Coinbase injoignables : deux inconnues de plus, jamais un mensonge */
+var G3 = robot.etatGate(CG, dG, { err:"HTTP 503" }, null);
+var r3 = G3.pour("buy");
+ok(G3.dirs.flux === null && G3.dirs.prem === null && r3.inconnus >= 3,
+   "sources manquantes : les signaux sont N/D, pas inventés");
+ok(r3.verdict !== "franchi", "le robot ne peut jamais annoncer « franchi » sans assez de signaux lus");
+
+/* la phrase ne sort que si un palier swing actionnable est signalé */
+var evSwing = [{ fort:true, txt:"SWING : Rien → <b>Achat 10-15 % du cash disponible</b>" }];
+var aSwing = { evenements:evSwing, T:AUJ-JOUR, lo:1, hi:2, mvrv:{}, gate:G1,
+               apres:{ px:1, sw:{ tier:4 } } };
+var mSwing = robot.message(CG, aSwing);
+ok(/Gate de confirmation : FRANCHI/.test(mSwing.corps) && mSwing.corps.indexOf("<") < 0,
+   "une alerte de palier swing porte le verdict du gate, sans balise HTML");
+var aHold = { evenements:[{ fort:false, txt:"EMA 200 franchie" }], T:AUJ-JOUR, lo:1, hi:2,
+              mvrv:{}, gate:G1, apres:{ px:1, sw:{ tier:3 } } };
+ok(robot.message(CG, aHold).corps.indexOf("Gate de confirmation") < 0,
+   "sans palier swing signalé, le robot ne parle pas du gate");
+
 /* ---------- échec franc plutôt que calcul bancal ---------- */
 var court = jeu(); court.kd = court.kd.slice(-100);
 var erreur = null;

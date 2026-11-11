@@ -37,6 +37,7 @@ var sandbox = require(path.join(__dirname, "..", "tests", "sandbox.js"));
 
 var MIROIR  = "https://data-api.binance.vision";   /* seul accès Binance ouvert depuis les États-Unis */
 var FNG     = "https://api.alternative.me/fng/?limit=31";
+var CBX     = "https://api.exchange.coinbase.com";   /* premium du spot américain */
 var NTFY    = "https://ntfy.sh/";
 var COCKPIT = "https://ataqc.github.io/BTC-Cockpit/";
 var JOUR    = 86400000;
@@ -62,9 +63,16 @@ function lireCM(C){
       return (j.next_page_url && n < 20) ? page(j.next_page_url, n + 1) : rows;
     });
   }
-  return page(C.CM_API + "?assets=btc&frequency=1d&metrics=CapMVRVCur,CapMrktCurUSD" +
+  return page(C.CM_API + "?assets=btc&frequency=1d&metrics=CapMVRVCur,CapMrktCurUSD,FlowInExNtv,FlowOutExNtv" +
               "&start_time=2010-01-01&paging_from=start&page_size=10000", 1)
     .then(function(r){ return { rows:r }; }, function(e){ return { err:e.message }; });
+}
+
+/* Clôture quotidienne de Coinbase, pour le premium du spot américain. Un échec
+   n'arrête rien : le signal sera simplement N/D, comme le funding. */
+function lireCoinbase(){
+  return lire(CBX + "/products/BTC-USD/candles?granularity=86400")
+    .then(function(j){ return j; }, function(){ return null; });
 }
 
 function telecharger(C){
@@ -75,8 +83,9 @@ function telecharger(C){
     lire(k + "1d&limit=500"),
     lire(k + "1w&limit=300"),
     lire(FNG),
-    lireCM(C)
-  ]).then(function(r){ return { tick:r[0], k4:r[1], kd:r[2], kw:r[3], fng:r[4], cm:r[5] }; });
+    lireCM(C),
+    lireCoinbase()
+  ]).then(function(r){ return { tick:r[0], k4:r[1], kd:r[2], kw:r[3], fng:r[4], cm:r[5], cb:r[6] }; });
 }
 
 /* Fait tourner la page entière sur un jeu de données, comme le navigateur, et
@@ -166,6 +175,72 @@ function etatMvrv(C, cm, maintenant){
         C.MVRV_TENUE + " jours (Z " + C.num(ch.z, 2) + " le " + date + ", Coin Metrics)" } };
 }
 
+/* LE GATE, VU PAR LE ROBOT (depuis le 11 novembre 2026).
+   Le cockpit exige GATE_MIN signaux alignés parmi les quatre qui confirment :
+   momentum/volume, funding, flux des plateformes, premium Coinbase. Trois sont
+   lisibles depuis un serveur GitHub ; le FUNDING ne l'est pas (fapi.binance.com
+   répond 451 depuis les États-Unis). Le robot ne tranche donc jamais à la place
+   du cockpit : il encadre.
+     - alignés >= GATE_MIN parmi les lisibles      → franchi À COUP SÛR
+     - alignés + inconnus < GATE_MIN               → bloqué À COUP SÛR
+     - entre les deux                              → indéterminé, le funding décide
+   Aucune règle n'est recopiée : les sens viennent de SIG, le seuil de GATE_MIN. */
+function etatGate(C, d, cm, cb){
+  var cl = d.kd.map(function(k){ return parseFloat(k[4]); });
+  var i = cl.length - 1, dirs = {};
+
+  var e20 = C.emaSeries(cl, 20), mac = C.macdSeries(cl);
+  dirs.momentum = (e20[i] === undefined || !mac || mac.hist[i-1] === undefined) ? null
+    : C.SIG.momentum(cl[i] > e20[i], Math.abs(mac.hist[i]) > Math.abs(mac.hist[i-1]));
+
+  dirs.funding = null;         /* fapi.binance.com : 451 depuis les serveurs GitHub */
+
+  var fl = null;
+  if(cm && cm.rows && !cm.err){
+    var S = C.cmSeries(cm.rows);
+    fl = C.cmFlux(S, 30);
+  }
+  dirs.flux = fl ? C.SIG.flux(fl.net) : null;
+
+  var prem = null;
+  if(cb && cb.length){
+    /* la bougie journalière Coinbase de la même journée UTC que la dernière
+       clôture Binance lue — jamais la journée en cours */
+    var jour = Math.floor(d.kd[i][0] / JOUR) * JOUR / 1000;
+    for(var j = 0; j < cb.length; j++) if(cb[j][0] === jour) prem = C.premGap(cb[j][4], cl[i]);
+  }
+  dirs.prem = prem === null ? null : C.SIG.prem(prem);
+
+  return {
+    dirs: dirs,
+    /* encadrement pour une action donnée */
+    pour: function(dir){
+      var a = 0, c = 0, inconnus = 0;
+      ["momentum", "funding", "flux", "prem"].forEach(function(k){
+        if(dirs[k] === null){ inconnus++; return; }
+        if(dirs[k] === dir) a++; else c++;
+      });
+      return { alignes:a, contraires:c, inconnus:inconnus,
+               verdict: a >= C.GATE_MIN ? "franchi"
+                      : (a + inconnus < C.GATE_MIN ? "bloque" : "indetermine") };
+    }
+  };
+}
+
+/* La phrase que le robot ajoute quand il signale un palier swing. */
+function phraseGate(C, G, dir){
+  var r = G.pour(dir), lisibles = 4 - r.inconnus;
+  var detail = r.alignes + " aligné(s) et " + r.contraires + " contraire(s) sur les " +
+               lisibles + " signaux lisibles d'ici" +
+               (r.inconnus ? " (le funding n'est pas lisible depuis GitHub)" : "");
+  if(r.verdict === "franchi")
+    return "Gate de confirmation : FRANCHI — " + detail + ", or " + C.GATE_MIN + " suffisent.";
+  if(r.verdict === "bloque")
+    return "Gate de confirmation : BLOQUÉ — " + detail + " : même en sa faveur, le funding ne peut plus atteindre " +
+           C.GATE_MIN + ". Le cockpit ramènera l'action à « Rien ».";
+  return "Gate de confirmation : INDÉTERMINÉ — " + detail + " ; c'est le funding qui tranchera. Ouvre le cockpit.";
+}
+
 function trier(ev){ return ev.sort(function(a, b){ return (b.fort ? 1 : 0) - (a.fort ? 1 : 0); }); }
 
 function analyser(C, brut, maintenant){
@@ -186,6 +261,7 @@ function analyser(C, brut, maintenant){
       "</b>, tenu " + u[2] + (u[0] === "1 J" ? " clôtures" : " semaines") });
   });
 
+  var G = etatGate(C, d, brut.cm, brut.cb);
   var mv = etatMvrv(C, brut.cm, maintenant);
   var ev = evenementsJour(C, avant, apres, cloture, regimes);
   if(mv.evenement) ev.push(mv.evenement);
@@ -198,22 +274,26 @@ function analyser(C, brut, maintenant){
   var r = C.visitRange(v.T);          /* le cockpit contient maintenant l'état du jour */
   var rS = C.visitRange(s.T);
   return { T: v.T, TS: s.T, avant: avant, apres: apres, lo: r.lo, hi: r.hi, loS: rS.lo, hiS: rS.hi,
-           evenements: trier(ev), semaine: trier(evS), mvrv: mv, cloture: cloture };
+           evenements: trier(ev), semaine: trier(evS), mvrv: mv, cloture: cloture, gate: G };
 }
 
 function sansHtml(t){ return String(t).replace(/<[^>]+>/g, ""); }
 
-function lignes(C, ev, mvrv){
+function lignes(C, ev, mvrv, a) {
   var out = ev.map(function(e){ return (e.fort ? "À regarder · " : "À noter · ") + sansHtml(e.txt); });
+  if(ev.some(function(e){ return /^SWING/.test(e.txt); })){
+    var t = a && a.apres && a.apres.sw ? a.apres.sw.tier : null;
+    var dir = (t === null || t === undefined) ? null : C.TIERS[t].dir;
+    if(a && a.gate && dir && dir !== "hold") out.push(phraseGate(C, a.gate, dir));
+    else out.push("Palier swing = action candidate : le gate n'a pas pu être lu.");
+  }
   if(mvrv && mvrv.resume) out.push("MVRV : " + mvrv.resume + ".");
-  if(ev.some(function(e){ return /^SWING/.test(e.txt); }))
-    out.push("Palier swing = action candidate : le gate de confirmation n'est pas lisible depuis GitHub.");
   return out;
 }
 
 function message(C, a){
   var n = a.evenements.length;
-  var corps = lignes(C, a.evenements, a.mvrv);
+  var corps = lignes(C, a.evenements, a.mvrv, a);
   corps.splice(n, 0, "", "Depuis le " + new Date(a.T).toLocaleDateString("fr-FR", {timeZone:"UTC"}) +
     " 00:00 UTC : plus bas " + C.num(a.lo, 0) + " $, plus haut " + C.num(a.hi, 0) + " $.");
   corps.push("Ouvre le cockpit pour le tableau complet, avec tes invalidations.");
@@ -224,7 +304,7 @@ function message(C, a){
 /* Point du lundi : tout ce qui a changé depuis sept clôtures, « à noter » compris.
    C'est aussi la preuve que le robot tourne : s'il manque un lundi, il est arrêté. */
 function messageSemaine(C, a){
-  var corps = a.semaine.length ? lignes(C, a.semaine, a.mvrv)
+  var corps = a.semaine.length ? lignes(C, a.semaine, a.mvrv, a)
             : ["Rien de notable cette semaine."].concat(a.mvrv && a.mvrv.resume ? ["MVRV : " + a.mvrv.resume + "."] : []);
   corps.push("");
   corps.push("Depuis le " + new Date(a.TS).toLocaleDateString("fr-FR", {timeZone:"UTC"}) +
@@ -288,5 +368,6 @@ if(require.main === module) principal();
 module.exports = { analyser: analyser, message: message, messageSemaine: messageSemaine, aEnvoyer: aEnvoyer,
                    reculer: reculer, etat: etat, etatMvrv: etatMvrv, regimeConfirme: regimeConfirme,
                    evenementsJour: evenementsJour, sansHtml: sansHtml,
+                   etatGate: etatGate, phraseGate: phraseGate,
                    MARGE_NIVEAU: MARGE_NIVEAU, TENUE_REGIME: TENUE_REGIME,
                    TENUE_REGIME_W: TENUE_REGIME_W, FENETRE_HEBDO: FENETRE_HEBDO };
