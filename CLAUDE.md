@@ -172,6 +172,13 @@ utilisés en repli automatique si le principal échoue.
   disponibles, est comptée à part et jamais extrapolée
 - **Premium Coinbase automatique** (`premGap`, `cbpSource`) : plus une saisie. Ne
   reste manuel que le flux ETF
+- **La raison du blocage, dans le titre du verdict** (depuis le 11 novembre 2026) :
+  quand la chaîne ramène une action candidate à « Rien », la carte montre le palier
+  candidat **barré**, puis le palier final, puis une phrase qui nomme la règle en
+  cause (`decide` renseigne `raison`). « Rien » calculé et « Rien » imposé ne sont pas
+  la même chose, et l'utilisateur ne pouvait pas les distinguer : il lisait « légère
+  survente non actionnable » là où le cockpit voulait acheter mais ne pouvait pas. Le
+  bloc pour l'IA porte la même ligne. **Affichage seulement, aucune règle touchée.**
 
 **Bilan « depuis ta dernière visite »** — volet A des alertes. Il compare ce que
 le cockpit affiche à ce qu'il affichait lors de la visite précédente **sur cet
@@ -510,7 +517,7 @@ qu'ils sont dans l'onglet Backtest et nulle part ailleurs.
     minimal simulé. Les tests appellent donc les **vraies** fonctions des vraies
     pages : ne recopie jamais une formule dans un test, un test qui recopie ce
     qu'il vérifie ne vérifie rien.
-  - `tests/engine.test.js` (226 vérifications, zéro dépendance) : identités
+  - `tests/engine.test.js` (237 vérifications, zéro dépendance) : identités
     mathématiques (moyenne mobile sur série constante = la constante, RSI sur série
     croissante = 100, décroissante = 0, plate = 50), chaîne de décision, péremption,
     **unicité des formules** (chaque indicateur défini une seule fois dans la page)
@@ -535,8 +542,13 @@ qu'ils sont dans l'onglet Backtest et nulle part ailleurs.
     = règles actuelles, gate qui ne confirme rien = aucune action, gate qui ne
     confirme que les achats, date de décision jamais celle d'exécution, courbe
     complète) et **premium Coinbase** (écart calculé à la main, prix absurde = N/D,
-    secours manuel repris puis périmé).
-  - `tests/page.test.js` (99 vérifications, `jsdom`) : charge `index.html` entière
+    secours manuel repris puis périmé). Depuis le 11 novembre 2026, seconde série :
+    **raison du blocage** (gate, vente SWING, règle de régime, et aucune raison
+    inventée quand rien n'est bloqué), **règle du momentum** isolée dans `SIG`, et
+    **crochet de vente SWING conditionnelle** (par défaut la règle du 8 septembre est
+    intacte ; un prédicat qui refuse donne exactement le même résultat ; un prédicat
+    qui autorise fait apparaître des ventes — sans quoi le test ne mordrait pas).
+  - `tests/page.test.js` (101 vérifications, `jsdom`) : charge `index.html` entière
     avec un faux réseau et vérifie le rendu, les scores, le bloc généré, la
     péremption, la bascule des onglets (par clic et par adresse), un backtest
     complet, le bilan de visite (référence conservée pendant la visite, jamais
@@ -1116,6 +1128,85 @@ règle de régime qui bloquent : **c'est le gate**.
   hors tendance haussière hebdomadaire). À mesurer avant d'en parler, protocole fixé
   d'avance.
 
+### Le taux de blocage du gate, et ce qu'il bloque (11 novembre 2026)
+
+Rejouable : `node etudes/blocage.js`. Cinq des sept signaux sont reconstituables sur
+l'historique — momentum/volume (déduit des bougies, règle isolée dans `SIG` ce jour-là),
+funding, Fear & Greed, flux, premium. Les deux manquants (croisement prix/OI,
+long/short) peuvent ajouter au plus 2 alignés, d'où un **encadrement exact** : 3 alignés
+ou plus sur 5 → le gate passe à coup sûr ; 0 sur 5 → il bloque à coup sûr ; 1 ou 2 →
+indéterminé. Période : depuis le 10/09/2019, quand les cinq existent.
+
+| | SWING (2 619 jours) | POSITION (2 618 jours) |
+|---|---|---|
+| jours avec un palier candidat | **37,2 %** | 32,8 % |
+| le gate passe à coup sûr | 29,6 % | 46,9 % |
+| le gate bloque à coup sûr | 9,7 % | 1,5 % |
+| indéterminé | **60,7 %** | 51,6 % |
+
+**Le gate n'est donc pas un mur** — mais dans six cas sur dix en SWING, **son verdict
+est décidé par les deux signaux que personne ne peut mesurer ni valider**. C'est un fait
+structurel à garder en tête avant de défendre ce gate.
+
+**Et il filtre à l'envers.** Rendement moyen à 15 jours (SWING, référence +2,0 %) et à
+90 jours (POSITION, référence +15,0 %) :
+
+| | SWING achats | SWING ventes | POSITION achats | POSITION ventes |
+|---|---|---|---|---|
+| que le gate laisse passer | +0,2 % | +7,5 % | +10,7 % | +45,0 % |
+| indéterminés | +0,9 % | +4,7 % | +9,8 % | +47,1 % |
+| **que le gate bloque à coup sûr** | **+3,5 %** | **+3,5 %** | **+17,0 %** (13 j) | — |
+
+Un bon filtre laisserait passer les achats suivis de hausses et les ventes suivies de
+baisses. **C'est l'inverse qui se produit, sur les deux horizons et les deux côtés** :
+les achats que le gate bloque ont mieux marché que ceux qu'il laisse passer, et les
+ventes qu'il confirme ont été suivies des plus fortes hausses. Cohérent avec l'étude des
+signaux : Fear & Greed a le mauvais sens, le momentum suit la tendance, et le gate
+n'est au fond qu'un vote de suiveurs de tendance.
+
+**Décision : aucune règle modifiée.** Desserrer le gate ferait agir plus souvent sur un
+signal d'achat qui, lui, ne vaut rien (§14, paliers) ; le durcir n'a pas été mesuré. Ce
+qu'il faut retenir : **le gate n'est pas la raison pour laquelle l'outil est utile**, et
+ce n'est pas lui qu'il faut défendre si un jour il faut choisir quoi simplifier.
+
+### Faut-il un retrait CONDITIONNEL des ventes SWING ? (11 novembre 2026)
+
+Rejouable : `node etudes/ventes-swing.js`. Protocole fixé avant calcul : cinq variantes
+seulement, définies par ce que la chaîne connaît déjà (régime journalier, tendance de
+fond) ; deux périodes (coupure au 07/09/2021, celle du 8 septembre 2026) ; deux moteurs ;
+carences 7/30/60 ; adoption **seulement** si une variante bat la règle actuelle sur les
+deux périodes, aux trois carences, sur les deux moteurs, sans pire perte plus profonde.
+
+Moteur journalier, carence 30 jours (période 1 / période 2) :
+
+| Variante | Perf | Ventes | Pire perte |
+|---|---|---|---|
+| **A. aucune vente — règle actuelle** | **+489 % / +73 %** | 0 / 0 | −61 % / −70 % |
+| B. vendre hors TENDANCE | +217 % / +38 % | 11 / 23 | −51 % / −59 % |
+| C. vendre si EMA 50 < EMA 200 | +296 % / +51 % | 7 / 8 | −54 % / −63 % |
+| D. vendre seulement en RANGE | +384 % / +54 % | 3 / 6 | −58 % / −69 % |
+| E. vendre dès que le palier le dit | +217 % / +38 % | 11 / 23 | −51 % / −59 % |
+
+**Aucune variante ne bat la règle actuelle, nulle part** — ni en 4 heures, ni à une autre
+carence. La seule qui gagne quelque part est C, en période 2 à carence 7 (+88 % contre
++64 % en journalier, +76 % contre +53 % en 4 heures), et elle perd lourdement en
+période 1. Avec 30 % d'impôt, toutes s'effondrent encore (B et E tombent à +198 % / +22 %).
+Comme ailleurs, **vendre réduit la pire perte** (−51 % contre −61 %) et coûte la
+performance.
+
+**B et E donnent exactement les mêmes chiffres** : un palier de vente SWING ne coïncide
+jamais avec un régime TENDANCE confirmé. La règle de régime n'aurait donc rien filtré —
+c'est bien le retrait total de l'étape 2 qui fait le travail.
+
+**Et le sommet du 21 septembre 2026 ?** Score 8,25 à 86 620 $, régime **TRANSITION**,
+EMA 50 au-dessus de l'EMA 200. Seules B et E auraient vendu — les deux pires variantes.
+C, la seule qui tienne à peu près la route, n'aurait **pas** vendu.
+
+**Décision du 11 novembre 2026 : aucune règle modifiée.** Il n'existe pas, dans ce qui a
+été testé, de condition qui aurait attrapé ce sommet sans détruire le reste. L'épisode
+de septembre-novembre 2026 est le **coût assumé** d'une règle qui gagne sur huit ans :
+le dire à l'utilisateur, ne pas l'habiller.
+
 ### Autres cryptos : ce qui se transpose, et ce qui ne se transpose pas (11 novembre 2026)
 
 Question posée par l'utilisateur : pouvoir cliquer sur BTC, ETH ou TAO et obtenir la
@@ -1177,13 +1268,16 @@ a été validé et ce qui ne l'a pas été.
    perte prime.
 11. **Multi-cryptos** : cockpit technique pour n'importe quelle paire Binance, puis
    étude de calibration par actif pour l'horizon POSITION (voir ci-dessus).
-12. **Dire dans le verdict pourquoi l'action a été bloquée**, au lieu de « non
-   actionnable » : affichage seulement, aucune règle touchée.
-13. **Mesurer le taux de blocage du gate** (cinq signaux sur sept sont calculables,
-   les deux autres s'encadrent). C'est ce qui manque pour juger la sévérité réelle.
-14. **Tester un retrait conditionnel des ventes SWING** : l'interdiction totale a coûté
-   14 % en septembre-novembre 2026 alors qu'elle gagne sur huit ans. Protocole fixé
-   d'avance, et décision de l'utilisateur.
+12. ~~Dire dans le verdict pourquoi l'action a été bloquée~~ — **fait le 11 novembre 2026**.
+13. ~~Mesurer le taux de blocage du gate~~ — **fait le 11 novembre 2026** : il filtre à
+   l'envers, et six fois sur dix son verdict dépend des deux signaux non mesurables.
+14. ~~Tester un retrait conditionnel des ventes SWING~~ — **fait le 11 novembre 2026** :
+   aucune condition ne tient, l'interdiction totale reste la meilleure.
+15. **Le vrai chantier ouvert par ces trois mesures** : le côté ACHAT de la table n'a
+   de valeur sur aucun horizon (§14, paliers), et le gate ne le rattrape pas. Soit on
+   l'assume — l'outil sert à ne pas agir et à vendre dans les rares extrêmes de
+   valorisation —, soit on teste son retrait comme on l'a fait pour les ventes SWING.
+   Décision de l'utilisateur, protocole fixé d'avance.
 
 ---
 
@@ -1344,8 +1438,8 @@ Leçons de ce passage :
    e-mail réelle**, le dépôt est public :
    `git config user.name "Ataqc"` et
    `git config user.email "Ataqc@users.noreply.github.com"`.
-4. **Dépendances de test** : `npm ci`, puis `npm test`. Attendu : moteur 226,
-   robot 40, page 99 — **365 vérifications, 0 échec**. Un échec ici veut dire que
+4. **Dépendances de test** : `npm ci`, puis `npm test`. Attendu : moteur 237,
+   robot 40, page 101 — **378 vérifications, 0 échec**. Un échec ici veut dire que
    l'environnement diffère : le diagnostiquer avant toute modification.
 5. **Connexion GitHub** : `gh auth status`. Si l'utilisateur n'est pas connecté,
    lui demander de faire lui-même `gh auth login` (navigateur, compte `Ataqc`) —

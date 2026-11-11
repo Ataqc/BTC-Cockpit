@@ -40,42 +40,7 @@ const C = sandbox.load("index.html");
 const DATA = require("./donnees.js");
 const { JOUR, jourDe, iso, binance1d, funding, fng, coinbase1d, coinmetrics } = DATA;
 
-/* ---------------- construction des séries de signaux ---------------- */
-function signaux(kl, fund, peur, cb, S){
-  /* funding du jour : le DERNIER taux publié avant la clôture, en % par 8 h,
-     exactement l'unité que lit le cockpit */
-  const fd = {};
-  fund.forEach(([t, v]) => { fd[jourDe(t)] = Number(v) * 100; });
-
-  const pd = {};
-  peur.forEach(([t, v]) => { pd[jourDe(t)] = v; });
-  /* moyenne 30 jours du Fear & Greed : c'est elle que le gate lit en POSITION */
-  const jours = Object.keys(pd).map(Number).sort((a, b) => a - b);
-  const pm = {};
-  jours.forEach((j, i) => {
-    const f = jours.slice(Math.max(0, i - 30), i + 1).map(x => pd[x]);
-    pm[j] = f.reduce((a, b) => a + b, 0) / f.length;
-  });
-
-  /* premium : clôture Coinbase contre clôture Binance du même jour, par premGap */
-  const bc = {};
-  kl.forEach(k => { bc[jourDe(k[0])] = parseFloat(k[4]); });
-  const pr = {};
-  Object.keys(bc).map(Number).forEach(j => {
-    const v = C.premGap(cb[j] === undefined ? null : Number(cb[j]), bc[j]);
-    if(v !== null) pr[j] = v;
-  });
-
-  /* flux : solde net des 30 jours, calculé par la fonction de la page sur une
-     fenêtre glissante, et DÉCALÉ D'UN JOUR (Coin Metrics publie en différé) */
-  const fx = {};
-  for(let i = 40; i < S.t.length; i++){
-    const f = C.cmFlux({ t: S.t.slice(i - 39, i + 1), flIn: S.flIn.slice(i - 39, i + 1),
-                         flOut: S.flOut.slice(i - 39, i + 1) }, 30);
-    if(f) fx[jourDe(S.t[i]) + JOUR] = f.net;
-  }
-  return { funding: fd, fngJour: pd, fngMoy: pm, prem: pr, flux: fx, binance: bc };
-}
+const SIGNAUX = require("./signaux.js");
 
 /* ---------------- partie A : chaque signal, séparément ---------------- */
 function valeurPredictive(SG){
@@ -239,7 +204,7 @@ function swing(SG, kl){
   console.log("Bougies Binance : " + kl.length + " jours, du " + iso(kl[0][0]) + " au " + iso(kl[kl.length-1][0]));
   console.log("Funding : " + fund.length + " points · Fear & Greed : " + peur.length + " jours");
   console.log("Coin Metrics : " + S.t.length + " jours · Coinbase : " + Object.keys(cb).length + " jours");
-  const SG = signaux(kl, fund, peur, cb, S);
+  const SG = SIGNAUX.construire(C, { kl, fund, peur, cb, S });
   const nb = c => Object.keys(SG[c]).length;
   console.log("Signaux reconstitués — funding " + nb("funding") + " j · F&G " + nb("fngJour") +
               " j · flux " + nb("flux") + " j · premium " + nb("prem") + " j");

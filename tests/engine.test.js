@@ -597,6 +597,24 @@ var zP = C.mvrvZSeries(SP.mc, SP.mv), eqP = 0;
 ok(eqP === 3, "le backtest POSITION note chaque jour EXACTEMENT comme le cockpit, MVRV compris (" + eqP + "/3 identiques)");
 C.D = {}; C.__set("mMvrv", ""); C.__set("mDate", "");
 
+g("Le verdict dit pourquoi l'action est bloquée");
+/* D vide : aucun signal du gate n'a de donnée, donc aucun ne confirme rien. */
+C.D = {};
+var dG = C.decide(3.0, "swing", {label:"RANGE"}, null, {});
+ok(dG.capped === true && dG.final !== dG.candidate && /gate de confirmation/.test(dG.raison || "") &&
+   /sans donnée/.test(dG.raison || ""),
+   "achat bloqué par le gate : la raison est dite, et le nombre de signaux sans donnée aussi");
+var dV = C.decide(9.0, "swing", {label:"RANGE"}, null, {});
+ok(dV.capped === true && /ventes SWING/.test(dV.raison || ""),
+   "vente SWING : la raison nomme le retrait décidé après backtest");
+var dT = C.decide(9.0, "position", {label:"TENDANCE"}, null, {});
+ok(dT.capped === true && /règle de régime/.test(dT.raison || ""),
+   "vente POSITION en TENDANCE : la raison nomme la règle de régime");
+var dR = C.decide(5.0, "swing", {label:"RANGE"}, null, {});
+ok(dR.final === dR.candidate && !dR.capped && !dR.raison,
+   "aucune action candidate : rien n'est « bloqué », et aucune raison n'est inventée");
+C.D = {};
+
 g("Règles des signaux du gate, isolées et mesurables");
 ok(C.SIG.funding(0.03) === "sell" && C.SIG.funding(-0.03) === "buy" &&
    C.SIG.funding(0.02) === null && C.SIG.funding(0.01) === null && C.SIG.funding(null) === null,
@@ -610,6 +628,33 @@ ok(C.SIG.prem(0.1) === "buy" && C.SIG.prem(-0.1) === "sell" && C.SIG.prem(null) 
    "premium : positif = les Américains paient plus cher, donc accumuler");
 ok((source.split("> 0.02").length - 1) === 1 && (source.split("> 55").length - 1) === 1,
    "les seuils de ces signaux ne sont écrits qu'à un seul endroit dans la page");
+ok(C.SIG.momentum(true, true) === "buy" && C.SIG.momentum(true, false) === "sell" &&
+   C.SIG.momentum(false, false) === "buy" && C.SIG.momentum(false, true) === "sell" &&
+   C.SIG.momentum(null, true) === null && C.SIG.momentum(true, undefined) === null,
+   "momentum : au-dessus de l'EMA 20 le MACD qui s'écarte confirme, qui se resserre essouffle ; "+
+   "en dessous c'est l'inverse");
+
+g("Retrait conditionnel des ventes SWING — crochet d'étude");
+ok(C.TIERS[C.tierRules(9, "swing", "RANGE", false, null, false).i].dir === "hold" &&
+   C.tierRules(9, "swing", "RANGE", false, null, false).rule === "swing-sell",
+   "par défaut, aucune vente SWING : la règle du 8 septembre 2026 est intacte");
+ok(C.TIERS[C.tierRules(9, "swing", "RANGE", false, null, false, false, function(){ return true; }).i].dir === "sell",
+   "une étude peut autoriser la vente SWING par un prédicat explicite");
+ok(C.TIERS[C.tierRules(9, "swing", "RANGE", false, null, false, false, function(){ return false; }).i].dir === "hold",
+   "un prédicat qui refuse laisse la règle actuelle s'appliquer");
+var vuS = [];
+C.tierRules(9, "swing", "TRANSITION", false, null, true, false, function(reg, bear, down){
+  vuS.push([reg, bear, down]); return false; });
+ok(vuS.length === 1 && vuS[0][0] === "TRANSITION" && vuS[0][2] === true,
+   "le prédicat reçoit le régime et la tendance de fond, rien d'autre");
+var sansPred = C.simulate(KL, 365, 70, 0.1, 7, 0);
+var avecFaux = C.simulate(KL, 365, 70, 0.1, 7, 0, null, function(){ return false; });
+ok(memePasse(avecFaux.runs.regime.eq, sansPred.runs.regime.eq) &&
+   sansPred.runs.regime.trades.every(function(t){ return t.type !== "vente"; }),
+   "moteur SWING : sans prédicat ou avec un prédicat qui refuse, le résultat est identique");
+var avecVrai = C.simulate(KL, 365, 70, 0.1, 7, 0, null, function(){ return true; });
+ok(avecVrai.runs.regime.trades.some(function(t){ return t.type === "vente"; }),
+   "avec un prédicat qui autorise, des ventes SWING apparaissent — le test précédent mord");
 
 g("Un gate mesurable dans les backtests");
 var gTout = C.simulatePosition(SP, 1000, 70, 0.1, 7, 0, function(){ return true; });

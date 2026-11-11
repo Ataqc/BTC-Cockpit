@@ -146,6 +146,23 @@ attendre().then(function(){
   ok(bloc.indexOf("undefined") < 0 && bloc.indexOf("NaN") < 0,
      "le bloc ne contient ni « undefined » ni « NaN »");
 
+  /* ---------- le verdict dit pourquoi l'action est bloquée ---------- */
+  var carte = win.verdictCard("TEST", "essai",
+    { score:3.05, parts:[], dropped:[], W:100 },
+    { final:3, candidate:4, capped:true, aligned:2, opposed:1,
+      raison:"gate de confirmation : 2 signal(aux) sur 7 dans le sens de l'action, 3 sont requis",
+      steps:["Score 3,05 → Achat 10-15 % du cash disponible"] },
+    { label:"RANGE", cls:"t-neu", er:0.1, er60:0.1 }, null);
+  ok(/Achat 10-15 %/.test(carte) && /line-through/.test(carte) &&
+     /Action bloquée/.test(carte) && /gate de confirmation/.test(carte),
+     "palier candidat barré, palier final, et la raison en toutes lettres dans la carte");
+  var carte2 = win.verdictCard("TEST", "essai",
+    { score:5.0, parts:[], dropped:[], W:100 },
+    { final:3, candidate:3, capped:false, steps:[] },
+    { label:"RANGE", cls:"t-neu", er:0.1, er60:0.1 }, null);
+  ok(!/Action bloquée/.test(carte2) && !/line-through/.test(carte2),
+     "quand rien n'est bloqué, la carte n'annonce aucun blocage");
+
   /* ---------- premium Coinbase automatique ---------- */
   ok(win.D.cbPx === 30300 && Math.abs(win.cbpSource().v - 1) < 1e-9 && win.cbpSource().src === "auto",
      "le premium Coinbase est calculé tout seul à partir des deux prix (+1,000 % attendu)");
