@@ -31,6 +31,8 @@ function klines(n, ms, depart){
   return out;
 }
 function reponse(url){
+  /* Coinbase : 30 300 $ contre 30 000 $ chez Binance, soit un premium de +1,000 % */
+  if(/coinbase/.test(url)) return { price:"30300.00" };
   if(/ticker\/24hr/.test(url))
     return { lastPrice:"30000.00", priceChangePercent:"1.50", highPrice:"30500.00",
              lowPrice:"29500.00", volume:"12000", quoteVolume:"360000000" };
@@ -143,6 +145,17 @@ attendre().then(function(){
   });
   ok(bloc.indexOf("undefined") < 0 && bloc.indexOf("NaN") < 0,
      "le bloc ne contient ni « undefined » ni « NaN »");
+
+  /* ---------- premium Coinbase automatique ---------- */
+  ok(win.D.cbPx === 30300 && Math.abs(win.cbpSource().v - 1) < 1e-9 && win.cbpSource().src === "auto",
+     "le premium Coinbase est calculé tout seul à partir des deux prix (+1,000 % attendu)");
+  ok(/Coinbase premium gap : \+1,000 % \(Coinbase/.test(bloc) && /automatique, hors saisie/.test(bloc),
+     "le bloc transmet le premium calculé et dit qu'il ne vient pas d'une saisie");
+  var sig7 = win.gateSignals("swing")[6];
+  ok(/premium Coinbase \+1,000 %/.test(sig7.txt) && sig7.txt.indexOf("(saisie)") < 0,
+     "le 7e signal du gate lit le premium automatique");
+  ok(/Métriques LENTES manquantes \([0-9]+\) : (?!.*Coinbase premium)/.test(bloc),
+     "le premium n'est plus compté parmi les métriques lentes manquantes");
 
   /* ---------- MVRV absent : score position renormalisé ---------- */
   ok(V.position.dropped.indexOf("MVRV Z-score") >= 0 && V.position.W === 60,

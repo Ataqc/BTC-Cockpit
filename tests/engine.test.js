@@ -597,6 +597,113 @@ var zP = C.mvrvZSeries(SP.mc, SP.mv), eqP = 0;
 ok(eqP === 3, "le backtest POSITION note chaque jour EXACTEMENT comme le cockpit, MVRV compris (" + eqP + "/3 identiques)");
 C.D = {}; C.__set("mMvrv", ""); C.__set("mDate", "");
 
+g("Règles des signaux du gate, isolées et mesurables");
+ok(C.SIG.funding(0.03) === "sell" && C.SIG.funding(-0.03) === "buy" &&
+   C.SIG.funding(0.02) === null && C.SIG.funding(0.01) === null && C.SIG.funding(null) === null,
+   "funding : seuils du §8 (au-delà de ±0,02 %), zone neutre comprise, N/D reste N/D");
+ok(C.SIG.fng(56) === "sell" && C.SIG.fng(44) === "buy" &&
+   C.SIG.fng(55) === null && C.SIG.fng(45) === null && C.SIG.fng(undefined) === null,
+   "Fear & Greed : au-dessus de 55 alléger, sous 45 accumuler, entre les deux rien");
+ok(C.SIG.flux(10) === "sell" && C.SIG.flux(-10) === "buy" && C.SIG.flux(null) === null,
+   "flux : des bitcoins qui entrent sur les plateformes valent pression vendeuse");
+ok(C.SIG.prem(0.1) === "buy" && C.SIG.prem(-0.1) === "sell" && C.SIG.prem(null) === null,
+   "premium : positif = les Américains paient plus cher, donc accumuler");
+ok((source.split("> 0.02").length - 1) === 1 && (source.split("> 55").length - 1) === 1,
+   "les seuils de ces signaux ne sont écrits qu'à un seul endroit dans la page");
+
+g("Un gate mesurable dans les backtests");
+var gTout = C.simulatePosition(SP, 1000, 70, 0.1, 7, 0, function(){ return true; });
+ok(gTout.list.length === 5 && memePasse(gTout.runs.gate.eq, gTout.runs.actuel.eq),
+   "un gate qui confirme tout redonne exactement les règles actuelles");
+var gRien = C.simulatePosition(SP, 1000, 70, 0.1, 7, 0, function(){ return false; });
+ok(gRien.runs.gate.trades.length === 0 && gRien.runs.actuel.trades.length > 0,
+   "un gate qui ne confirme rien ne laisse passer aucune action");
+var gVente = C.simulatePosition(SP, 1000, 70, 0.1, 7, 0, function(w, dir){ return dir !== "sell"; });
+ok(gVente.runs.gate.trades.length > 0 &&
+   gVente.runs.gate.trades.every(function(t){ return t.type !== "vente"; }) &&
+   gTout.runs.gate.trades.some(function(t){ return t.type === "vente"; }),
+   "un gate qui ne confirme que les achats laisse passer les achats et bloque les ventes");
+var vues = [], dates = {};
+SP.t.forEach(function(t){ dates[t] = true; });
+C.simulatePosition(SP, 1000, 70, 0.1, 7, 0, function(when, dir){ vues.push([when, dir]); return true; });
+ok(vues.length > 0 &&
+   vues.every(function(v){ return dates[v[0]] && (v[1] === "buy" || v[1] === "sell"); }) &&
+   vues.every(function(v){ return v[0] <= SP.t[SP.t.length - 2]; }),
+   "le gate est consulté à la clôture qui décide, avec le sens de l'action, jamais le dernier jour");
+var gSwing = C.simulate(KL, 365, 70, 0.1, 7, 0, function(){ return false; });
+ok(gSwing.list.length === 3 && gSwing.runs.gate.trades.length === 0 && gSwing.runs.regime.trades.length > 0,
+   "le gate s'applique aussi au moteur SWING journalier");
+ok(gSwing.runs.gate.eq.length === gSwing.runs.regime.eq.length &&
+   gSwing.runs.gate.eq.every(function(v){ return isFinite(v); }) &&
+   isFinite(gTout.runs.gate.eq[gTout.runs.gate.eq.length-1]),
+   "la variante avec gate a une courbe complète et chiffrable dans les deux moteurs");
+
+g("Premium Coinbase automatique");
+ok(near(C.premGap(10100, 10000), 1, 1e-12) && near(C.premGap(9900, 10000), -1, 1e-12),
+   "premium = écart en pourcentage entre le prix Coinbase et le prix Binance (+1 % et −1 % attendus)");
+ok(C.premGap(0, 10000) === null && C.premGap(10000, 0) === null &&
+   C.premGap(undefined, 10000) === null && C.premGap(10000, null) === null,
+   "un prix manquant ou absurde donne N/D, jamais un écart inventé");
+C.D = {tick:{lastPrice:"10000"}, cbPx:10100};
+var PA = C.cbpSource();
+ok(PA.src === "auto" && near(PA.v, 1, 1e-12) && PA.cb === 10100 && PA.bin === 10000,
+   "Coinbase joignable : le premium est calculé, et la source est dite");
+C.D = {tick:{lastPrice:"10000"}, cbPx:null};
+C.__set("mCbp", "0,25"); C.__set("mDate", C.todayFr());
+var PM = C.cbpSource();
+ok(PM.src === "manuel" && near(PM.v, 0.25, 1e-12),
+   "Coinbase injoignable : la saisie de secours reprend la main");
+C.__set("mDate", "01/01/2020");
+ok(C.cbpSource().v === null,
+   "secours périmé et Coinbase injoignable : N/D, comme pour toute métrique lente");
+C.D = {}; C.__set("mCbp", ""); C.__set("mDate", "");
+
+g("Coûts réels : frais et impôt sur le gain réalisé");
+/* Exemples calculés à la main. Départ 100 % en BTC à 1000 $ : 0,001 BTC pour une
+   valeur de 1, prix de revient 1000. Palier « Vente 20-30 % » = 25 % des BTC, soit
+   0,00025 BTC vendu à 2000 $, sans frais. Produit 0,50 ; gain 0,00025 × (2000 − 1000)
+   = 0,25 ; impôt 30 % = 0,075 ; il doit rester 0,425 en cash. */
+var rv = C.btRun0(100, 1000);
+C.btExec(rv, 0, 2000, 0, 0, 1000, {score:9, reg:"RANGE"}, 30);
+ok(near(rv.cash, 0.425, 1e-12) && near(rv.impot, 0.075, 1e-12) && near(rv.btc, 0.00075, 1e-12),
+   "vente imposée : le cash reçu est net de l'impôt sur la plus-value (0,425 attendu, " + rv.cash.toFixed(6) + ")");
+ok(near(rv.trades[0].impot, 0.075, 1e-12), "chaque vente garde la trace de ce que l'impôt a coûté");
+var rv0 = C.btRun0(100, 1000);
+C.btExec(rv0, 0, 2000, 0, 0, 1000, {score:9, reg:"RANGE"}, 0);
+ok(near(rv0.cash, 0.5, 1e-12) && rv0.impot === 0,
+   "taux à zéro : le produit de la vente est intact, rien n'est prélevé en silence");
+var rp = C.btRun0(100, 1000);
+C.btExec(rp, 0, 500, 0, 0, 1000, {score:9, reg:"RANGE"}, 30);
+ok(near(rp.cash, 0.125, 1e-12) && rp.impot === 0,
+   "vente à perte : aucun impôt, et aucune restitution inventée");
+/* Achat : 50/50 à 1000 $ → 0,0005 BTC et 0,50 de cash. Palier « Achat 25-35 % » =
+   30 % du cash, soit 0,15 investi à 500 $ = 0,0003 BTC. Nouveau prix de revient :
+   (0,50 + 0,15) ÷ 0,0008 = 812,50. */
+var ra = C.btRun0(50, 1000);
+C.btExec(ra, 5, 500, 0, 0, 1000, {score:1, reg:"RANGE"}, 30);
+ok(near(ra.pru, 812.5, 1e-9) && ra.impot === 0,
+   "achat : prix de revient moyen recalculé (812,50 attendu, " + ra.pru.toFixed(2) + "), et aucun impôt");
+var rh = C.btRun0(100, 1000);
+ok(near(C.btValue(rh, 2000), 2, 1e-12) && near(C.btNet(rh, 2000, 30), 1.7, 1e-12),
+   "position jamais vendue : la valeur nette déduit l'impôt encore dû (1,7 attendu)");
+ok(near(C.btNet(rh, 800, 30), C.btValue(rh, 800), 1e-12),
+   "aucune plus-value latente, aucun impôt latent");
+
+var RP0 = C.simulatePosition(SP, 1000, 70, 0.1, 7, 0);
+var memesR = RP0.list.every(function(v, i){ return memePasse(v.run.eq, RP.list[i].run.eq); });
+ok(memesR && RP0.tax === 0,
+   "impôt à 0 % : les résultats sont rigoureusement ceux d'avant ce réglage");
+var RPt = C.simulatePosition(SP, 1000, 70, 0.1, 7, 30);
+function fin(r){ return r.eq[r.eq.length-1]; }
+ok(memePasse(RPt.runs.sansVente.eq, RP.runs.sansVente.eq) && RPt.runs.sansVente.impot === 0,
+   "une variante qui ne vend jamais ne paie jamais : l'impôt ne la touche pas");
+ok(RPt.runs.actuel.impot > 0 && fin(RPt.runs.actuel) < fin(RP.runs.actuel),
+   "une variante qui vend paie, et finit plus bas que la même sans impôt");
+ok(RPt.hold.impot === 0 && memePasse(RPt.hold.eq, RP.hold.eq),
+   "la référence « ne rien faire » ne vend rien, donc ne paie rien");
+ok(C.btNet(RPt.runs.sansVente, RPt.pxFin, 30) < fin(RPt.runs.sansVente),
+   "l'impôt latent de celui qui n'a jamais vendu est bien compté quand on liquide tout");
+
 g("Valeur atteinte après une tenue");
 ok(C.suiteConfirmee(["a","a","a","b","b"], 3) === null,
    "une nouvelle valeur qui n'a pas tenu assez longtemps : rien n'est atteint");

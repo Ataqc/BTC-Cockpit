@@ -24,7 +24,7 @@ faire.
 
 ## Ce que la pastille verte en haut veut dire
 
-À chaque modification envoyée sur GitHub, 333 vérifications automatiques
+À chaque modification envoyée sur GitHub, 365 vérifications automatiques
 s'exécutent :
 
 - **le moteur de calcul** — chaque indicateur est confronté à une série dont on
@@ -124,6 +124,11 @@ marché durablement baissier.
   réalisé et flux des plateformes, licence CC BY-NC 4.0) sont gratuits. Ne restent à
   saisir à la main que les flux ETF et le premium Coinbase.
 - Sur iPhone, le cockpit s'ajoute à l'écran d'accueil et s'ouvre en plein écran.
+- Le **premium Coinbase** est calculé tout seul, à partir du prix du spot américain :
+  il ne reste que les flux ETF à saisir à la main.
+- Le backtest compte les **frais et, si tu le demandes, l'impôt sur les gains
+  réalisés** — conserver ne paie jamais, vendre paie à chaque fois, et la comparaison
+  change du tout au tout.
 - Aucune valeur inventée : quand une donnée manque **ou qu'elle est périmée**,
   elle vaut N/D et son poids est redistribué, en le disant.
 

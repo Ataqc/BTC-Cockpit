@@ -102,7 +102,8 @@ Toutes gratuites, sans clé, appelées directement depuis le navigateur.
 | Funding, open interest, long/short | `fapi.binance.com` | temps réel |
 | Fear & Greed | `api.alternative.me` | quotidienne |
 | MVRV Z-score, ratio MVRV, prix réalisé, flux des plateformes (entrées et sorties d'exchanges) — et l'historique quotidien depuis 2010 pour le backtest POSITION | `community-api.coinmetrics.io` (gratuit, sans clé, licence CC BY-NC 4.0 : citer la source, c'est fait en bas de page) | quotidienne (journée de la veille) |
-| Flux ETF, Coinbase premium | **saisie manuelle** | hebdomadaire |
+| Premium Coinbase (prix du spot américain) | `api.exchange.coinbase.com` (gratuit, sans clé, CORS ouvert) | temps réel |
+| Flux ETF | **saisie manuelle** | hebdomadaire |
 | Liquidations 24 h | **aucune** — reste N/D | — |
 
 **MVRV automatique depuis le 15 septembre 2026.** Coin Metrics ne publie pas le
@@ -132,6 +133,15 @@ récente. Les écarter au motif qu'elles sont provisoires reviendrait à ne lire
 2010 — le premier essai le faisait, un test l'interdit désormais. Les valeurs peuvent
 être révisées après coup : la date lue est toujours affichée.
 
+**Premium Coinbase, depuis le 11 novembre 2026** : écart entre le prix en dollars sur
+Coinbase — le spot américain, celui où passent les ETF — et le prix en USDT sur
+Binance, calculé par `premGap`. Positif : les acheteurs américains paient plus cher.
+L'API publique de Coinbase est gratuite, sans clé, et renvoie `access-control-allow-origin: *`
+(vérifié le 11/11/2026) : la page peut l'appeler directement. Historique quotidien
+disponible depuis le 20/07/2015, ce qui a permis de **mesurer** ce signal (§14). La
+saisie manuelle ne sert plus que de secours. **La règle du gate est inchangée : seul
+le signe compte**, aucun seuil n'a été ajouté.
+
 **Miroirs Binance** : `api1.binance.com` et `data-api.binance.vision` sont
 utilisés en repli automatique si le principal échoue.
 
@@ -160,6 +170,8 @@ utilisés en repli automatique si le principal échoue.
   après chaque verdict swing, comparé à la moyenne de tous les jours. Lu sur les vraies
   bougies ; une analyse trop récente pour l'horizon, ou antérieure aux bougies
   disponibles, est comptée à part et jamais extrapolée
+- **Premium Coinbase automatique** (`premGap`, `cbpSource`) : plus une saisie. Ne
+  reste manuel que le flux ETF
 
 **Bilan « depuis ta dernière visite »** — volet A des alertes. Il compare ce que
 le cockpit affiche à ce qu'il affichait lors de la visite précédente **sur cet
@@ -353,6 +365,18 @@ règle du cockpit.
 **Les 7 signaux du gate** : momentum/volume, croisement prix/OI, funding,
 long/short ratio, liquidations (toujours N/D), Fear & Greed, flux ETF/on-chain.
 
+**Les règles des signaux mesurables vivent dans `SIG`** (funding, Fear & Greed, flux,
+premium) depuis le 11 novembre 2026 : une seule définition, appelée par le cockpit et
+par l'étude du gate (`etudes/gate.js`). Les seuils n'ont pas changé en sortant de
+`gateSignals` — un test échoue s'ils réapparaissent ailleurs dans la page. Les trois
+autres signaux dépendent de données sans historique gratuit : ils restent écrits dans
+`gateSignals`, faute de pouvoir être mesurés.
+
+Le 7e signal agrège jusqu'à quatre votes (ETF jour, ETF 30 jours, flux des
+plateformes, premium). **Depuis que deux d'entre eux sont automatiques, une égalité
+est possible** — flux qui disent « accumuler », premium qui dit « alléger » — et une
+égalité vaut N/D. C'est voulu : deux sources qui se contredisent ne confirment rien.
+
 **Aucun de ces 7 n'entre dans le score technique.** C'est délibéré : compter la
 même information deux fois — une fois dans la note, une fois dans sa confirmation —
 créerait une fausse impression de convergence. Si tu ajoutes un signal, vérifie
@@ -383,6 +407,27 @@ cockpit : `rsiSeries`, `macdSeries`, `emaSeries`, `pctRank`, `agg`, `weighted`,
 d'équivalence** fait noter les mêmes données au cockpit et aux backtests 4 H et
 POSITION : les scores doivent être identiques. L'historique n'est téléchargé que
 quand on lance le calcul.
+
+**Coûts réels, depuis le 11 novembre 2026** : en plus des frais, un paramètre
+**impôt sur les gains réalisés** (0 %, 12,8 %, 30 %), appliqué à chaque vente sur
+l'écart entre le prix de vente et le **prix de revient moyen** des bitcoins vendus.
+Dans un portefeuille à deux poches comme celui du backtest, cette méthode donne le
+même montant que le calcul français au prorata de la valeur du portefeuille. Les
+moins-values ne sont pas reportées : l'impôt est plutôt surestimé que l'inverse.
+**Défaut 0 %**, pour que les chiffres déjà publiés restent reproductibles. Deux
+lectures sont affichées dès que le taux n'est pas nul : la valeur du portefeuille
+(plus-value latente non imposée) et le **net si tout était liquidé**, qui déduit
+l'impôt encore dû — sans cette seconde colonne, le simple report d'impôt de celui qui
+ne vend jamais passerait pour un gain. Résultats : §14.
+
+**Gate mesurable, depuis le 11 novembre 2026** : `simulate` et `simulatePosition`
+acceptent une fonction `gate(date, sens)` en dernier argument. Quand elle est
+fournie, une cinquième variante apparaît : les règles actuelles plus ce gate, qui
+ramène à « Rien » toute action non confirmée — un gate ne crée jamais d'action. La
+date passée est celle de la **décision**, jamais celle de l'exécution. Sans gate, le
+moteur est exactement celui d'avant, et un test le vérifie. C'est ce qui a permis de
+mesurer enfin le gate (§14) ; la page n'expose pas cette variante, faute de pouvoir
+télécharger l'historique du funding depuis le navigateur sans alourdir l'onglet.
 
 **Protections contre la triche au futur — à préserver absolument :**
 - Décision à la **clôture**, exécution au **cours suivant**
@@ -436,10 +481,16 @@ qu'ils sont dans l'onglet Backtest et nulle part ailleurs.
   ensuite. En cas de recalibrage, imposer une période de validation distincte de
   celle utilisée pour régler.
 - Les liquidations restent N/D. Ne pas inventer de substitut.
-- **Le signal Fear & Greed du gate a le mauvais sens, sur les deux moitiés de
-  l'historique** (§14, étude du 20 septembre 2026). Il reste en place pour l'instant :
-  le gate ne crée jamais d'action, il ne fait qu'autoriser ou bloquer. À trancher avec
-  l'utilisateur avant d'y toucher.
+- **Le signal Fear & Greed du gate a le mauvais sens**, sur les deux moitiés de
+  l'historique, dans deux études indépendantes (20 septembre et 11 novembre 2026), et
+  **le retirer améliore le gate mesurable à chaque carence** des deux seuls cycles où
+  la comparaison est possible (§14). Il reste en place tant que l'utilisateur n'a pas
+  tranché : c'est une règle de décision, pas un détail d'affichage.
+- **L'intérêt des ventes POSITION dépend de ce que tu fais de l'argent.** Sans sortie
+  vers l'euro elles gagnent ; avec 30 % d'impôt, elles perdent sur trois cycles sur
+  quatre en valeur de portefeuille, mais gagnent encore sur trois cycles sur quatre si
+  l'on compare ce qui reste une fois tout liquidé (§14). Aucune des deux lectures n'est
+  « la bonne » : elles répondent à deux questions différentes.
 - **Le MVRV automatique dépend d'un tiers gratuit.** Si Coin Metrics ferme son API
   communautaire ou change sa méthode, la saisie de secours reprend et la page le dit.
   Le recalcul du Z-score n'a été validé que contre lookintobitcoin.
@@ -459,7 +510,7 @@ qu'ils sont dans l'onglet Backtest et nulle part ailleurs.
     minimal simulé. Les tests appellent donc les **vraies** fonctions des vraies
     pages : ne recopie jamais une formule dans un test, un test qui recopie ce
     qu'il vérifie ne vérifie rien.
-  - `tests/engine.test.js` (198 vérifications, zéro dépendance) : identités
+  - `tests/engine.test.js` (226 vérifications, zéro dépendance) : identités
     mathématiques (moyenne mobile sur série constante = la constante, RSI sur série
     croissante = 100, décroissante = 0, plate = 50), chaîne de décision, péremption,
     **unicité des formules** (chaque indicateur défini une seule fois dans la page)
@@ -476,8 +527,16 @@ qu'ils sont dans l'onglet Backtest et nulle part ailleurs.
     le 20 septembre 2026 : flux d'exchanges (somme calculée à la main, N/D si un jour
     manque, statut « flash » lu sans servir de filtre), bilan des analyses passées
     (analyse trop récente ou hors bougies écartée, invalidation touchée selon le sens)
-    et seuils de régime nommés.
-  - `tests/page.test.js` (95 vérifications, `jsdom`) : charge `index.html` entière
+    et seuils de régime nommés. Depuis le 11 novembre 2026 : **impôt sur les gains
+    réalisés** (exemples calculés à la main, aucun impôt sur une moins-value, prix de
+    revient moyen recalculé à chaque achat, impôt latent déduit à la liquidation, taux
+    nul = résultats d'avant à l'identique), **règles `SIG`** des signaux du gate et
+    seuils écrits à un seul endroit, **gate dans les moteurs** (gate qui confirme tout
+    = règles actuelles, gate qui ne confirme rien = aucune action, gate qui ne
+    confirme que les achats, date de décision jamais celle d'exécution, courbe
+    complète) et **premium Coinbase** (écart calculé à la main, prix absurde = N/D,
+    secours manuel repris puis périmé).
+  - `tests/page.test.js` (99 vérifications, `jsdom`) : charge `index.html` entière
     avec un faux réseau et vérifie le rendu, les scores, le bloc généré, la
     péremption, la bascule des onglets (par clic et par adresse), un backtest
     complet, le bilan de visite (référence conservée pendant la visite, jamais
@@ -487,7 +546,9 @@ qu'ils sont dans l'onglet Backtest et nulle part ailleurs.
     du jour), backtests POSITION et 4 H complets, export puis import confirmé,
     réglages du backtest dans leur onglet. Depuis le 20 septembre 2026 : flux des
     plateformes dans le 7e signal et dans le bloc, bilan des analyses affiché
-    seulement quand il a de quoi être lu.
+    seulement quand il a de quoi être lu. Depuis le 11 novembre 2026 : premium
+    Coinbase calculé à partir des deux prix, écrit dans le bloc avec sa source, lu par
+    le 7e signal, et retiré de la liste des métriques lentes manquantes.
   - `tests/robot.test.js` (38 vérifications, zéro dépendance) : période comparée
     par le robot d'alerte, bougie en cours écartée, aucun palier POSITION ni
     aucune vente, alerte réelle sur une chute synthétique, notification sans
@@ -513,6 +574,16 @@ qu'ils sont dans l'onglet Backtest et nulle part ailleurs.
     décision, seuil de l'exception MVRV abaissé, import sans nettoyage, hebdomadaire
     lu une semaine en avance, Z-score faussé, pondération recopiée en dur. Chacune
     fait rougir la suite.
+- **Les études vivent dans `etudes/`, et elles sont rejouables.** `node etudes/gate.js`
+  et `node etudes/impot.js`, zéro dépendance, lancés depuis la racine. Elles
+  téléchargent elles-mêmes leurs données dans `etudes/.cache` (ignoré par git, se
+  reconstitue tout seul) et **ne recopient aucune règle** : elles chargent `index.html`
+  avec `tests/sandbox.js` et appellent ses fonctions. Avant le 11 novembre 2026, les
+  scripts d'étude vivaient dans un dossier temporaire : les données du 20 septembre
+  avaient disparu, et rien n'était rejouable. Toute nouvelle étude va là, avec son
+  protocole écrit en tête de fichier **avant** les résultats.
+  `fapi.binance.com` (funding) est bloqué depuis les serveurs GitHub mais répond
+  depuis une machine en Europe : ces études tournent en local, jamais dans la CI.
 - **Ne fabrique jamais un chiffre de marché.** Si tu testes avec des données
   synthétiques, dis-le explicitement — un résultat obtenu sur une série inventée
   ne dit rien du vrai Bitcoin.
@@ -563,6 +634,12 @@ qu'ils sont dans l'onglet Backtest et nulle part ailleurs.
   analyses passées (§6), cockpit en plein écran depuis l'écran d'accueil d'un iPhone,
   prompt d'analyse aligné sur les backtests, étude du gate et calibration du régime
   (§14) — aucune règle de décision modifiée
+- **11 novembre 2026** : coûts réels dans les backtests (frais **et** impôt, §10),
+  gate enfin mesuré de bout en bout (§14), premium Coinbase automatique (§5), dossier
+  `etudes/` rejouable (§12) — **aucune règle de décision modifiée**. Sept semaines de
+  robot réel relues au passage : 53 nuits, 53 réussites, 16 notifications (8 points du
+  lundi, 8 alertes sur 45 jours ouvrés, soit 4,6 par mois contre 3,4 annoncés par le
+  rejeu). La politique du 20 septembre tient
 
 ---
 
@@ -868,6 +945,151 @@ Performance des règles actuelles POSITION, carence 30 jours :
   sans pire perte plus profonde) → **aucun changement**. À reconsidérer quand un cycle
   complet de plus sera disponible, pas avant.
 
+### L'impôt change-t-il la conclusion « garder les ventes POSITION » ? (11 novembre 2026)
+
+Rejouable : `node etudes/impot.js`. Protocole fixé avant calcul — mêmes cycles coupés
+aux halvings, frais 0,1 %, départ 70 % BTC, carences 7/30/60, taux 0 / 12,8 / 30 %, et
+**deux lectures** : la valeur du portefeuille (plus-value latente non imposée, la
+situation de celui qui ne sortira jamais vers l'euro) et le **net tout liquidé**
+(l'impôt encore dû est déduit — celui qui n'a jamais vendu le doit toujours).
+
+Carence 30 jours, taux 30 % :
+
+| Cycle | Actuel 0 % | Actuel 30 % | Sans vente | Conserver | Actuel NET | Sans vente NET | Impôt payé |
+|---|---|---|---|---|---|---|---|
+| 2012-2016 | +3563 % | +3041 % | +3710 % | +3655 % | +2340 % | +2597 % | 303 pts |
+| 2016-2020 | +1160 % | +926 % | +1003 % | +869 % | +776 % | +702 % | 184 pts |
+| 2020-2024 | +555 % | +460 % | +480 % | +436 % | +360 % | +336 % | 54 pts |
+| 2024-2026 | +12 % | +11 % | +12 % | +11 % | +9 % | +8 % | 1 pt |
+
+**Lecture — tout dépend de ce qu'on fait de l'argent :**
+- **En valeur de portefeuille, à 30 %, les règles actuelles perdent contre « sans
+  aucune vente » sur les QUATRE cycles.** Sans impôt elles gagnaient sur deux. Chaque
+  vente est alors un coût définitif, jamais rattrapé.
+- **En net tout liquidé, à 30 %, elles gagnent encore sur trois cycles sur quatre** —
+  exactement comme à 0 %. L'impôt était dû de toute façon ; l'avoir payé plus tôt coûte
+  peu.
+- Autrement dit : **vendre ne détruit de la valeur que si tu ne comptais jamais
+  encaisser**. Si ton « cash » reste en stablecoin, aucun impôt n'est dû en France et
+  le bon réglage est 0 %.
+- Le coût grossit avec le nombre de ventes : 624 points d'impôt à 7 jours de carence
+  en 2012-2016 contre 61 à 60 jours. Un délai de carence long est aussi un bouclier
+  fiscal.
+- Les ventes SWING ayant été retirées en septembre 2026, **l'impôt ne change rien à
+  l'horizon SWING** : les règles actuelles n'y vendent jamais. Vérifié sur 5 ans réels
+  dans la page : 0 vente et 0 point d'impôt, contre 24 ventes et 9,4 points pour la
+  grille d'origine, qui finit à −8,8 %.
+
+**Décision du 11 novembre 2026 : aucune règle modifiée.** Le critère fixé d'avance
+(« si les règles actuelles cessent de battre sans-aucune-vente dès qu'on sort vers
+l'euro ») est **ambigu** : la réponse dépend de la lecture, donc d'une intention
+personnelle, pas du marché. C'est à l'utilisateur de dire s'il encaissera un jour.
+
+**Avertissement sur les chiffres absolus** : à 0 %, ce tableau ne retombe pas
+exactement sur celui du 15 septembre (+1160 % contre +1269 % en 2016-2020). Deux causes
+possibles, non départageables : la troncature de cycle ne tombe pas sur le même jour de
+départ, et **Coin Metrics révise son historique**. Toutes les comparaisons ci-dessus
+sont faites dans un même calcul, sur les mêmes données : elles ne dépendent pas de cet
+écart. À retenir pour l'avenir — un résultat de backtest absolu n'est pas stable d'un
+mois à l'autre, seules les comparaisons internes le sont.
+
+### Le gate mesuré de bout en bout (11 novembre 2026)
+
+Rejouable : `node etudes/gate.js`. Quatre signaux sur sept ont un historique gratuit :
+flux des plateformes (2011), Fear & Greed (2018), funding (septembre 2019) et, depuis
+ce jour, **premium Coinbase** (2017, limité par Binance). Les trois autres n'ont
+aucune source. On mesure donc des **gates réduits**, dits comme tels : « au moins k
+des signaux mesurables ». Flux décalés d'un jour, Coin Metrics publiant en différé.
+
+**A. Chaque signal séparément** — rendement moyen des 15 jours suivants, comparé à
+tous les jours de la même moitié :
+
+| Signal | 1re moitié | 2e moitié |
+|---|---|---|
+| Funding « alléger » | +0,6 % contre +2,4 % — bon sens | +2,5 % contre +1,5 % — mauvais sens |
+| Funding « accumuler » | +11,6 % contre +2,4 % — bon sens (23 j) | jamais déclenché |
+| Fear & Greed « alléger » | +5,8 % contre +2,1 % — mauvais sens | +1,9 % contre +1,7 % — mauvais sens |
+| Fear & Greed « accumuler » | +0,7 % contre +2,1 % — mauvais sens | +1,3 % contre +1,7 % — mauvais sens |
+| Flux « alléger » | +2,7 % contre +3,6 % — bon sens | +0,9 % contre +1,0 % — bon sens |
+| Flux « accumuler » | +5,5 % contre +3,6 % — bon sens | +1,0 % contre +1,0 % — bon sens |
+| **Premium « alléger »** | +2,3 % contre +3,6 % — bon sens | +0,8 % contre +1,0 % — bon sens |
+| **Premium « accumuler »** | +4,3 % contre +3,6 % — bon sens | +1,2 % contre +1,0 % — bon sens |
+
+Le premium Coinbase pointe dans le bon sens **des deux côtés et sur les deux moitiés**,
+comme les flux. Fear & Greed se trompe partout, pour la deuxième étude consécutive.
+
+**B. Le gate dans le moteur POSITION** — écart en points contre les règles actuelles,
+carences 7/30/60 jours :
+
+| Gate réduit | 2012-2016 | 2016-2020 | 2020-2024 | 2024-2026 |
+|---|---|---|---|---|
+| flux seuls | +315 / −17 / −95 | +561 / +162 / −49 | +96 / +83 / +1 | −8 / −2 / −2 |
+| flux + F&G (2 sur 2) | — | — | +14 / −7 / −77 | −9 / −3 / −3 |
+| **flux + funding + premium, sans F&G** | — | — | **+70 / +97 / +36** | −7 / −2 / −1 |
+| les quatre (2 sur 4) | — | — | −17 / −6 / −21 | −4 / −0 / +1 |
+| les quatre (3 sur 4) | — | — | +7 / +16 / −43 | −7 / −3 / −2 |
+
+Les tirets ne sont pas des trous : le Fear & Greed n'existe qu'à partir de 2018 et le
+funding de septembre 2019. **Seul le gate « flux seuls » est mesurable sur quatre
+cycles.**
+
+**C. Le gate dans le moteur SWING journalier** — il ne peut que bloquer des achats,
+puisque les règles actuelles n'y vendent plus. Tout l'intervalle puis seconde moitié,
+carences 7 et 30 : flux seuls −128 / −108 / +6 / +8 ; trio avec F&G −12 / −4 / −25 /
+−15 ; sans F&G −18 / −27 / −17 / −14 ; les quatre −2 / +13 / −7 / +0. Il divise les
+achats par deux ou trois pour un résultat neutre ou moins bon.
+
+**Lecture :**
+- **Aucun gate ne remplit les critères fixés d'avance** (faire mieux sur chaque cycle
+  et à chaque carence, sans pire perte plus profonde) → **aucune règle modifiée**.
+- **Ce que le gate fait vraiment, c'est réduire la pire perte en POSITION**, presque
+  partout : −76 % → −55 % en 2012-2016, −68 % → −52 % en 2016-2020 (carence 7 jours).
+  Sa valeur est défensive, pas offensive. Si un jour l'utilisateur veut arbitrer en
+  faveur de la pire perte plutôt que de la performance, c'est là qu'il faudra revenir.
+- **Sur le côté achat (SWING), le gate n'apporte rien.** C'est cohérent avec le
+  backtest de septembre : le score d'achat n'a déjà aucune valeur de timing.
+- **Retirer Fear & Greed améliore le gate mesurable à chaque carence** des deux cycles
+  où la comparaison existe (+70/+97/+36 sans lui, contre +14/−7/−77 avec). C'est la
+  troisième mesure qui l'accuse.
+- Ce qui manque toujours : momentum/volume, croisement prix/OI, long/short et
+  liquidations. **Le vrai gate à 3 sur 7 reste non mesurable** — ces tableaux parlent
+  de gates réduits, pas de celui du cockpit.
+
+### Autres cryptos : ce qui se transpose, et ce qui ne se transpose pas (11 novembre 2026)
+
+Question posée par l'utilisateur : pouvoir cliquer sur BTC, ETH ou TAO et obtenir la
+même analyse. Vérifié source par source le 11/11/2026.
+
+- **La moitié technique se transpose presque sans effort.** Toute la page ne contient
+  que 3 mentions de `BTCUSDT` et un seul appel nommant bitcoin. RSI, MACD, EMA, volume,
+  régime, divergences, niveaux et score SWING ne dépendent que des bougies. Le travail
+  est de la plomberie : sélecteur, stockage séparé par actif (cache, historique,
+  référence de visite, position et PRU sont uniques aujourd'hui), format de sauvegarde,
+  robot, et une bonne partie des tests qui supposent un seul actif. Une session.
+- **Binance** : ETH depuis le 17/08/2017, **TAO depuis le 11/04/2024 seulement** —
+  19 mois. Funding, OI et long/short existent pour les deux.
+- **Coin Metrics gratuit** : ETH a tout (MVRV, capitalisation, offre, flux) depuis le
+  30/07/2015 ; XRP, LTC, BCH, ADA, DOGE, BNB, LINK et DOT ont le MVRV. **TAO, SOL et
+  AVAX ne sont pas couverts du tout.** Sans MVRV, le score POSITION tombe sur 60 % de
+  son barème, c'est-à-dire sur du RSI et de la structure — ce que les backtests ont
+  montré sans valeur de timing. POSITION sur TAO serait un cockpit sans ancre, et ses
+  19 mois d'historique interdisent toute validation.
+- **Même pour ETH, les bandes du §8 ne se recopient pas.** Z-score de l'ether calculé
+  avec la fonction de la page sur dix ans (première année écartée, l'écart-type y porte
+  sur deux jours) : sous-évalué **30,3 %** des jours contre 13,9 % pour le bitcoin,
+  surachat **1,5 %** contre 6,0 %, sommet historique **0,0 %** contre 0,8 %. L'ether
+  n'a **jamais** dépassé Z = 7 (maximum 5,84 en mai 2017). Appliquer les bandes du
+  bitcoin à l'ether donnerait un outil qui ne prend jamais de profit et annonce
+  « sous-évalué » un jour sur trois. Chaque actif demande sa propre calibration, avec
+  le protocole habituel : une étude par actif, pas un portage.
+
+**Conclusion à retenir si le sujet revient** : cockpit technique multi-actifs = facile ;
+POSITION sur ETH = faisable après une étude de calibration ; POSITION sur TAO = non, et
+probablement jamais avec des sources gratuites. Le danger n'est pas technique : un
+bouton qui applique les règles du bitcoin à TAO produirait un cockpit d'apparence
+identique et de contenu vide. Si on le fait, la page doit dire, actif par actif, ce qui
+a été validé et ce qui ne l'a pas été.
+
 **Prochaines étapes possibles, par ordre de valeur :**
 1. **Alertes**, en deux volets choisis le 11 septembre 2026 :
    - **A — fait** : bilan « depuis ta dernière visite » en tête du cockpit (§6).
@@ -878,12 +1100,22 @@ Performance des règles actuelles POSITION, carence 30 jours :
 4. ~~Bandes MVRV relatives~~ — **testées et écartées le 15 septembre 2026**, ci-dessus.
 5. ~~Robot d'alerte et MVRV~~ — **fait le 15 septembre 2026** (§15).
 6. **Trancher le sort de Fear & Greed dans le gate** : son sens est faux sur les deux
-   moitiés de l'historique (étude ci-dessus). Décision de l'utilisateur, pas de
+   moitiés de l'historique, dans deux études indépendantes, et le retirer améliore le
+   gate mesurable partout où la comparaison existe. Décision de l'utilisateur, pas de
    session.
-7. **Reprendre la calibration du seuil TENDANCE** quand un cycle complet de plus sera
+7. **Trancher la lecture de l'impôt** : « je n'encaisserai jamais » (alors les ventes
+   POSITION coûtent, sur les quatre cycles) ou « j'encaisserai un jour » (alors elles
+   gardent leur avantage). Décision de l'utilisateur, elle aussi.
+8. **Reprendre la calibration du seuil TENDANCE** quand un cycle complet de plus sera
    disponible — pas avant, sous peine d'ajuster le passé.
-8. **Rendre le gate testable** si une source gratuite d'historique apparaît pour
-   l'open interest, le long/short ou les liquidations.
+9. ~~Rendre le gate testable~~ — **fait le 11 novembre 2026** pour les quatre signaux
+   qui ont un historique. Les trois autres restent hors de portée faute de source
+   gratuite pour l'open interest, le long/short et les liquidations.
+10. **Le gate comme outil défensif** : il réduit la pire perte en POSITION sans
+   améliorer la performance. À rouvrir seulement si l'utilisateur décide que la pire
+   perte prime.
+11. **Multi-cryptos** : cockpit technique pour n'importe quelle paire Binance, puis
+   étude de calibration par actif pour l'horizon POSITION (voir ci-dessus).
 
 ---
 
@@ -1044,8 +1276,8 @@ Leçons de ce passage :
    e-mail réelle**, le dépôt est public :
    `git config user.name "Ataqc"` et
    `git config user.email "Ataqc@users.noreply.github.com"`.
-4. **Dépendances de test** : `npm ci`, puis `npm test`. Attendu : moteur 198,
-   robot 40, page 95 — **333 vérifications, 0 échec**. Un échec ici veut dire que
+4. **Dépendances de test** : `npm ci`, puis `npm test`. Attendu : moteur 226,
+   robot 40, page 99 — **365 vérifications, 0 échec**. Un échec ici veut dire que
    l'environnement diffère : le diagnostiquer avant toute modification.
 5. **Connexion GitHub** : `gh auth status`. Si l'utilisateur n'est pas connecté,
    lui demander de faire lui-même `gh auth login` (navigateur, compte `Ataqc`) —

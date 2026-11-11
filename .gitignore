@@ -4,3 +4,5 @@ btc-cockpit-sauvegarde*.json
 .bak.html
 tmp_*.js
 .claude/launch.json
+# données téléchargées par les études : elles se reconstituent toutes seules
+etudes/.cache/

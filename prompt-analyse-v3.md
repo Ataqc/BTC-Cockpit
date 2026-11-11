@@ -91,7 +91,7 @@ En 1 ou 2 phrases par horizon : ce que ça signifie concrètement pour du Spot.
 Funding, OI, croisement prix/OI, long/short. Ces chiffres renforcent-ils ou contredisent-ils la lecture du §2 ? Y a-t-il un risque de purge ou de squeeze qui menace une position Spot ?
 
 ## 4. ON-CHAIN ET FLUX
-MVRV, prix réalisé et flux des plateformes (entrées et sorties d'exchanges, sur 7 et 30 jours) viennent de Coin Metrics, recalculés chaque jour : leur date est dans le bloc. Restent saisis à la main : flux ETF et premium Coinbase. Vérifie leur date et signale s'ils sont périmés. Une donnée on-chain de plus de deux semaines ne vaut presque rien. Si le bloc indique que Coin Metrics était injoignable, le MVRV vient de la saisie de secours : dis-le.
+MVRV, prix réalisé et flux des plateformes (entrées et sorties d'exchanges, sur 7 et 30 jours) viennent de Coin Metrics, recalculés chaque jour : leur date est dans le bloc. Le premium Coinbase est lui aussi calculé tout seul, depuis le prix du spot américain. Reste saisi à la main : le flux ETF. Vérifie leur date et signale s'ils sont périmés. Une donnée on-chain de plus de deux semaines ne vaut presque rien. Si le bloc indique que Coin Metrics était injoignable, le MVRV vient de la saisie de secours : dis-le.
 
 ## 5. CATALYSEURS À VENIR — TA RECHERCHE
 Cherche sur le web les événements datés des 30 prochains jours pouvant bouger le prix : macro, réglementaire, flux. Précise lesquels tombent DANS la fenêtre swing de 3 à 15 jours. Cite tes sources. 3 lignes maximum.

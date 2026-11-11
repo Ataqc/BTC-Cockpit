@@ -19,7 +19,7 @@
   --org:#b45309; --orgbg:#fdf1e0;
   --neu:#4b5563; --neubg:#eceef1;
   --acc:#1a56db;
-  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#8b5cf6; --s5:#c2417a; --axis:#c3c2b7;
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#8b5cf6; --s5:#c2417a; --s6:#0f8f9c; --axis:#c3c2b7;
   --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
 }
 @media (prefers-color-scheme:dark){
@@ -31,7 +31,7 @@
     --org:#e3a008; --orgbg:#2a1f08;
     --neu:#9aa5b1; --neubg:#1f252e;
     --acc:#58a6ff;
-    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#a78bfa; --s5:#e0609a; --axis:#4a525e;
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#a78bfa; --s5:#e0609a; --s6:#22a7b4; --axis:#4a525e;
   }
 }
 *{box-sizing:border-box}
@@ -359,7 +359,7 @@ td.n .seg{white-space:nowrap}
         <div class="sub"><a href="https://cryptoquant.com/asset/btc/chart/exchange-flows/exchange-reserve" target="_blank" rel="noopener">CryptoQuant</a></div>
       </div>
       <div>
-        <label>Coinbase premium</label>
+        <label>Coinbase premium — secours</label>
         <input type="text" id="mCbp" placeholder="ex : +0,03 %">
         <div class="sub"><a href="https://cryptoquant.com/asset/btc/chart/market-data/coinbase-premium-gap" target="_blank" rel="noopener">CryptoQuant</a></div>
       </div>
@@ -470,6 +470,14 @@ td.n .seg{white-space:nowrap}
         </select>
       </div>
       <div>
+        <label>Impôt sur les gains réalisés</label>
+        <select id="btTax">
+          <option value="0" selected>0 % — rien ne sort vers l'euro</option>
+          <option value="12.8">12,8 % — impôt seul</option>
+          <option value="30">30 % — prélèvement forfaitaire unique</option>
+        </select>
+      </div>
+      <div>
         <label>Délai de carence</label>
         <select id="btCool">
           <option value="0">Aucun — agir chaque jour</option>
@@ -481,6 +489,7 @@ td.n .seg{white-space:nowrap}
       </div>
     </div>
     <div class="hint">Le <b>délai de carence</b> empêche la grille de redéclencher la même action tous les jours tant que le score reste dans sa zone. Sans lui, un signal qui dure deux semaines vend quatorze fois et liquide la position par tranches. Mets-le à zéro pour voir l'effet par toi-même.</div>
+    <div class="hint"><b>L'impôt</b> ne frappe que les ventes, sur l'écart entre le prix de vente et le prix de revient moyen des bitcoins vendus. Il change la comparaison du tout au tout : conserver ne paie jamais, vendre paie à chaque fois. Choisis le taux qui correspond à ce que tu fais de l'argent — <b>0 %</b> si ton « cash » reste en crypto ou en stablecoin, puisque rien n'est alors encaissé ; <b>30 %</b> si tu sors vers un compte en euros. Ce réglage est une hypothèse de coût que tu poses, pas un calcul fiscal : les moins-values ne sont pas reportées d'une opération à l'autre, et la règle réelle dépend de ta situation.</div>
     <div class="bar" style="margin-top:16px">
       <button class="primary" id="btRun">Lancer le backtest</button>
       <span id="btStatus" style="font-size:13px;color:var(--tx2)"></span>
@@ -512,6 +521,7 @@ td.n .seg{white-space:nowrap}
 var SPOT_HOSTS = ["https://api.binance.com","https://api1.binance.com","https://data-api.binance.vision"];
 var FUT  = "https://fapi.binance.com";
 var FNG  = "https://api.alternative.me";
+var CBX  = "https://api.exchange.coinbase.com";   /* public, sans clé, CORS ouvert */
 var SYM  = "BTCUSDT";
 
 /* ---------- Utilitaires ---------- */
@@ -1130,8 +1140,7 @@ function gateSignals(horizon){
   var fu = null, fuTxt = "N/D";
   if(D.fundNow!==undefined){
     fuTxt = num(D.fundNow,4)+" % · "+fundTag(D.fundNow)[0];
-    if(D.fundNow >  0.02) fu = "sell";
-    else if(D.fundNow < -0.02) fu = "buy";
+    fu = SIG.funding(D.fundNow);
   }
   S.push({n:"Funding", dir:fu, txt:fuTxt});
 
@@ -1151,8 +1160,7 @@ function gateSignals(horizon){
   var fg = null, fgTxt = "N/D", fgV = horizon==="swing" ? D.fngNow : D.fngAvg;
   if(fgV!==undefined && fgV!==null){
     fgTxt = num(fgV,0)+" · "+fngTag(fgV)[0]+(horizon==="swing"?" (du jour)":" (moyenne 30 j)");
-    if(fgV > 55) fg = "sell";
-    else if(fgV < 45) fg = "buy";
+    fg = SIG.fng(fgV);
   }
   S.push({n:"Fear & Greed", dir:fg, txt:fgTxt});
 
@@ -1166,7 +1174,7 @@ function gateSignals(horizon){
      de secours. Des bitcoins qui ENTRENT sur les plateformes = pression vendeuse. */
   var fx = cmFresh(D.cm, Date.now()) ? D.cm.flux30 : null;
   if(fx){
-    votes.push(fx.net > 0 ? "sell" : "buy");
+    votes.push(SIG.flux(fx.net));
     det.push("flux exchanges 30 j " + (fx.net > 0 ? "+"+num(fx.net,0)+" BTC vers les plateformes"
                                                   : num(-fx.net,0)+" BTC retirés"));
   } else {
@@ -1174,8 +1182,9 @@ function gateSignals(horizon){
     if(/hauss|augment|monte/.test(rv)){ votes.push("sell"); det.push("réserves en hausse (saisie)"); }
     else if(/baiss|diminu|descend/.test(rv)){ votes.push("buy"); det.push("réserves en baisse (saisie)"); }
   }
-  var cb = stale ? null : parseNum($("mCbp").value);
-  if(cb!==null){ votes.push(cb>0?"buy":"sell"); det.push("premium "+sgn(cb,3)); }
+  var P = cbpSource();
+  if(P.v!==null){ votes.push(SIG.prem(P.v));
+    det.push("premium Coinbase "+sgn(P.v,3)+" %"+(P.src==="auto" ? "" : " (saisie)")); }
   var fx = null;
   if(votes.length){
     var nb = votes.filter(function(v){ return v==="buy"; }).length;
@@ -1189,6 +1198,37 @@ function gateSignals(horizon){
 
   return S;
 }
+
+/* Premium Coinbase, automatique depuis le 11 novembre 2026 : écart entre le prix en
+   dollars sur Coinbase — le spot américain, celui où passent les ETF — et le prix en
+   USDT sur Binance. Positif : les acheteurs américains paient plus cher. Source
+   gratuite et sans clé. La saisie manuelle ne sert plus que de secours.
+   La RÈGLE du gate est inchangée : seul le signe compte, aucun seuil n'a été ajouté. */
+function premGap(cb, bin){
+  if(!(cb > 0) || !(bin > 0)) return null;
+  return (cb/bin - 1)*100;
+}
+function cbpSource(){
+  var bin = (D.tick && D.tick.lastPrice) ? parseFloat(D.tick.lastPrice) : null;
+  var a = premGap(D.cbPx, bin);
+  if(a !== null) return {v:a, src:"auto", cb:D.cbPx, bin:bin};
+  var m = manualStale() ? null : parseNum($("mCbp").value);
+  return {v:m, src: m === null ? null : "manuel"};
+}
+
+/* RÈGLES DES SIGNAUX DU GATE, isolées pour pouvoir être MESURÉES sur l'historique
+   (§14 du briefing). Une seule définition : le cockpit les appelle dans gateSignals,
+   l'étude du gate les appelle sur les séries anciennes. Aucun seuil n'a changé en
+   les sortant : ce sont ceux du §8. Les trois autres signaux (momentum/volume,
+   croisement prix/OI, long/short) dépendent de données dont il n'existe aucun
+   historique gratuit ; les liquidations n'ont aucune source du tout. */
+function sigNum(v){ return (v === null || v === undefined || isNaN(v)) ? null : Number(v); }
+var SIG = {
+  funding: function(v){ v = sigNum(v); return v === null ? null : (v > 0.02 ? "sell" : v < -0.02 ? "buy" : null); },
+  fng:     function(v){ v = sigNum(v); return v === null ? null : (v > 55 ? "sell" : v < 45 ? "buy" : null); },
+  flux:    function(v){ v = sigNum(v); return v === null ? null : (v > 0 ? "sell" : "buy"); },
+  prem:    function(v){ v = sigNum(v); return v === null ? null : (v > 0 ? "buy" : "sell"); }
+};
 
 /* Chaîne de décision complète pour un horizon.
    opt.mvrvSub : sous-score MVRV, sert à l'exception de valorisation extrême. */
@@ -1455,6 +1495,7 @@ var SRC = [
   {k:"fut",   n:"Binance — dérivés (OI, funding, long/short)"},
   {k:"fng",   n:"Alternative.me — Fear &amp; Greed"},
   {k:"cm",    n:"Coin Metrics — MVRV &amp; prix réalisé"},
+  {k:"cb",    n:"Coinbase — premium du spot américain"},
   {k:"manual",n:"Métriques lentes (saisie manuelle)"}
 ];
 var state = {};
@@ -1508,7 +1549,7 @@ var D = {};
 function loadAll(){
   $("refresh").disabled = true;
   $("refresh").innerHTML = '<span class="spin"></span> Chargement';
-  ["spot","fut","fng","cm"].forEach(function(k){ state[k] = {cls:"wait",msg:"chargement…"}; });
+  ["spot","fut","fng","cm","cb"].forEach(function(k){ state[k] = {cls:"wait",msg:"chargement…"}; });
   drawSources();
 
   var pSpot = Promise.all([
@@ -1551,7 +1592,17 @@ function loadAll(){
     state.cm = {cls:"ko", msg:"échec — "+esc(e.message)+" · MVRV et prix réalisé passent sur la saisie manuelle"};
   });
 
-  return Promise.all([pSpot,pFut,pFng,pCm]).then(function(){
+  var pCb = withTimeout(CBX+"/products/BTC-USD/ticker").then(function(r){
+    var px = parseFloat(r.price);
+    if(!(px > 0)) throw new Error("prix illisible");
+    D.cbPx = px;
+    state.cb = {cls:"ok", msg:"OK · "+num(px,0)+" $ sur Coinbase"};
+  }).catch(function(e){
+    D.cbPx = null;
+    state.cb = {cls:"ko", msg:"échec — "+esc(e.message)+" · le premium repasse sur la saisie manuelle"};
+  });
+
+  return Promise.all([pSpot,pFut,pFng,pCm,pCb]).then(function(){
     render();
     $("refresh").disabled = false;
     $("refresh").textContent = "Actualiser";
@@ -2246,7 +2297,10 @@ function buildBlock(){
   L.push("Flux ETF spot US — jour : "+mv("mEtf1"," M$"));
   L.push("Flux ETF spot US — cumul 30j : "+mv("mEtf30"," M$"));
   L.push("Réserves exchanges : "+mv("mResv"));
-  L.push("Coinbase premium gap : "+mv("mCbp"));
+  var CBP = cbpSource();
+  L.push("Coinbase premium gap : "+(CBP.src === "auto"
+    ? sgn(CBP.v,3)+" % (Coinbase "+num(CBP.cb,0)+" $ contre Binance "+num(CBP.bin,0)+" $ — automatique, hors saisie)"
+    : mv("mCbp")));
   L.push("");
   var V = D.verdict;
   if(V && V.ok){
@@ -2323,12 +2377,12 @@ function buildBlock(){
     slow.push("MVRV" + ((mStale && $("mMvrv").value.trim()!=="") ? " (périmé)" : ""));
   if(!(D.cm && D.cm.flux30) && (mStale || $("mResv").value.trim()===""))
     slow.push("réserves exchanges" + ((mStale && $("mResv").value.trim()!=="") ? " (périmé)" : ""));
-  ["mEtf1","mCbp"].forEach(function(k,i){
-    /* périmée = manquante : c'est le même vide, il doit compter pareil */
-    if(mStale || $(k).value.trim()==="")
-      slow.push(["flux ETF","Coinbase premium"][i] +
-                ((mStale && $(k).value.trim()!=="") ? " (périmé)" : ""));
-  });
+  /* périmée = manquante : c'est le même vide, il doit compter pareil */
+  if(mStale || $("mEtf1").value.trim()==="")
+    slow.push("flux ETF" + ((mStale && $("mEtf1").value.trim()!=="") ? " (périmé)" : ""));
+  /* le premium n'est manquant que si Coinbase ET la saisie de secours manquent */
+  if(cbpSource().v === null)
+    slow.push("Coinbase premium" + ((mStale && $("mCbp").value.trim()!=="") ? " (périmé)" : ""));
   if(D.fngNow===undefined) slow.push("Fear & Greed");
   L.push("Métriques RAPIDES manquantes ("+fast.length+") : "+(fast.length?fast.join(", "):"aucune"));
   L.push("Métriques LENTES manquantes ("+slow.length+") : "+(slow.length?slow.join(", "):"aucune"));
@@ -2377,27 +2431,50 @@ function btFetchDaily(days){
 
 /* ---------- mécanique commune aux trois backtests ---------- */
 function btRun0(alloc, p0){
-  return {btc:alloc/100/p0, cash:(100-alloc)/100, trades:[], eq:[], last:-Infinity};
+  return {btc:alloc/100/p0, cash:(100-alloc)/100, pru:p0, impot:0, trades:[], eq:[], last:-Infinity};
 }
 /* Exécute un palier sur un portefeuille simulé, au cours px, à l'instant when.
    Le délai de carence est compté en temps réel : 7 jours valent 7 jours en
    journalier comme en 4 heures. */
-function btExec(run, id, px, fee, cool, when, info){
+function btExec(run, id, px, fee, cool, when, info, tax){
   var T = TIERS[id];
   if(T.dir === "hold") return;
   if(when - run.last < cool*86400000) return;             /* délai de carence */
   run.last = when;
   if(T.dir === "sell" && run.btc > 0){
     var q = run.btc*((T.lo+T.hi)/200);
-    run.btc -= q; run.cash += q*px*(1-fee/100);
-    run.trades.push({t:when, type:"vente", px:px, qty:q, score:info.score, reg:info.reg});
+    /* Impôt sur le gain réalisé : (prix de vente moins prix de revient moyen) fois la
+       quantité vendue. Dans un portefeuille à deux poches comme celui-ci, cette
+       méthode donne le même montant que le calcul au prorata de la valeur du
+       portefeuille. Une moins-value ne rend rien : les pertes ne sont pas reportées
+       d'une opération à l'autre, ce qui surestime légèrement l'impôt plutôt que de
+       le sous-estimer. */
+    var imp = tax > 0 ? Math.max(0, q*(px - run.pru))*tax/100 : 0;
+    run.btc -= q; run.cash += q*px*(1-fee/100) - imp; run.impot += imp;
+    run.trades.push({t:when, type:"vente", px:px, qty:q, impot:imp, score:info.score, reg:info.reg});
   } else if(T.dir === "buy" && run.cash > 0){
-    var c = run.cash*((T.lo+T.hi)/200);
-    run.cash -= c; run.btc += c/px*(1-fee/100);
-    run.trades.push({t:when, type:"achat", px:px, qty:c, score:info.score, reg:info.reg});
+    var c = run.cash*((T.lo+T.hi)/200), qa = c/px*(1-fee/100);
+    /* prix de revient moyen : tout ce qui a été payé divisé par tout ce qui est détenu */
+    if(run.btc + qa > 0) run.pru = (run.pru*run.btc + c)/(run.btc + qa);
+    run.cash -= c; run.btc += qa;
+    run.trades.push({t:when, type:"achat", px:px, qty:c, impot:0, score:info.score, reg:info.reg});
   }
 }
+/* Valeur nette si tout était liquidé maintenant : l'impôt encore dû sur la
+   plus-value latente est déduit. Une stratégie qui n'a jamais vendu n'a rien payé,
+   mais elle le doit toujours — sans cette ligne, le report d'impôt passerait pour
+   un gain. */
+function btNet(run, px, tax){
+  return btValue(run, px) - (tax > 0 ? Math.max(0, run.btc*(px - run.pru))*tax/100 : 0);
+}
 function btValue(run, px){ return run.btc*px + run.cash; }
+/* Étape 4 de la chaîne, rejouée : un gate ne CRÉE jamais d'action, il ramène à
+   « Rien » celle qu'il ne confirme pas. La date passée est celle de la DÉCISION
+   (la clôture), jamais celle de l'exécution. */
+function btGated(gate, when, id, score){
+  if(TIERS[id].dir === "hold") return id;
+  return gate(when, TIERS[id].dir) ? id : holdIdx(score === null ? 5 : score);
+}
 /* Rendement futur après un signal, pour juger le signal lui-même.
    h = horizons en jours ; spd = bougies par jour. */
 function btFwd0(h, keys){
@@ -2423,7 +2500,7 @@ function btAvg(v){
 }
 
 /* ---------- SWING, bougies journalières ---------- */
-function simulate(kl, days, alloc, fee, cool){
+function simulate(kl, days, alloc, fee, cool, tax, gate){
   var close = kl.map(function(k){ return parseFloat(k[4]); });
   var open  = kl.map(function(k){ return parseFloat(k[1]); });
   var time  = kl.map(function(k){ return k[0]; });
@@ -2443,7 +2520,8 @@ function simulate(kl, days, alloc, fee, cool){
   var start = Math.max(260, n - days);
   var p0 = close[start];
   var runs = { regime: btRun0(alloc,p0), plain: btRun0(alloc,p0) };
-  var hold = {btc:alloc/100/p0, cash:(100-alloc)/100, eq:[]};
+  if(gate) runs.gate = btRun0(alloc,p0);
+  var hold = btRun0(alloc,p0);
   var dates = [], fwd = btFwd0([15], ["sell","buy"]);
 
   for(var t=start; t<n-1; t++){
@@ -2455,8 +2533,9 @@ function simulate(kl, days, alloc, fee, cool){
        lui-même : aucune vente ; achat réduit d'un cran en tendance baissière. */
     var idxR = sc===null ? idx : tierRules(sc, "swing", reg, false, null, e50[t] < e200[t]).i;
     var info = {score:sc, reg:reg};
-    btExec(runs.regime, idxR, px, fee, cool, time[t+1], info);
-    btExec(runs.plain,  idx,  px, fee, cool, time[t+1], info);
+    btExec(runs.regime, idxR, px, fee, cool, time[t+1], info, tax);
+    btExec(runs.plain,  idx,  px, fee, cool, time[t+1], info, tax);
+    if(gate) btExec(runs.gate, btGated(gate, time[t], idxR, sc), px, fee, cool, time[t+1], info, tax);
 
     /* diagnostic : rendement des 15 jours suivants après chaque signal */
     if(sc!==null){
@@ -2464,15 +2543,16 @@ function simulate(kl, days, alloc, fee, cool){
       if(TIERS[idx].dir !== "hold") btFwdAdd(fwd, TIERS[idx].dir, close, t, 1);
     }
     var pc = close[t];
-    runs.regime.eq.push(btValue(runs.regime, pc));
-    runs.plain.eq.push(btValue(runs.plain, pc));
+    for(var kr in runs) runs[kr].eq.push(btValue(runs[kr], pc));
     hold.eq.push(btValue(hold, pc));
     dates.push(time[t]);
   }
   return { runs:runs, hold:hold, dates:dates, fwd:fwd, from:time[start], to:time[n-1],
+    tax:tax||0, pxFin:close[n-2],
     titre:"SWING, bougies journalières", pas:"jours", fwdMain:15,
     list:[{lbl:"Règles actuelles du cockpit", court:"Actuel", col:"var(--s1)", run:runs.regime},
-          {lbl:"Grille d'origine, avec les ventes", court:"Origine", col:"var(--s2)", run:runs.plain}],
+          {lbl:"Grille d'origine, avec les ventes", court:"Origine", col:"var(--s2)", run:runs.plain}]
+      .concat(gate ? [{lbl:"Règles actuelles + gate mesurable", court:"Gate", col:"var(--s4)", run:runs.gate}] : []),
     fwdRows:[{key:"sell", lbl:"Vente (score élevé)", dir:"sell"},
              {key:"buy",  lbl:"Achat (score bas)",   dir:"buy"}] };
 }
@@ -2482,7 +2562,7 @@ function simulate(kl, days, alloc, fee, cool){
    temps, agrégées par agg. Décision à chaque clôture 4 heures, avec la dernière
    bougie journalière close à cet instant. Exécution à l'ouverture de la bougie
    4 heures suivante. */
-function simulate4h(k4, kd, days, alloc, fee, cool){
+function simulate4h(k4, kd, days, alloc, fee, cool, tax){
   function col(kl, j){ return kl.map(function(k){ return parseFloat(k[j]); }); }
   var c4 = col(k4,4), o4 = col(k4,1);
   var t4 = k4.map(function(k){ return k[0]; }), f4 = k4.map(function(k){ return k[6]; });
@@ -2520,7 +2600,7 @@ function simulate4h(k4, kd, days, alloc, fee, cool){
   if(start >= n-1) throw new Error("historique 4 heures insuffisant pour ce calcul");
   var p0 = c4[start];
   var runs = { regime: btRun0(alloc,p0), plain: btRun0(alloc,p0) };
-  var hold = {btc:alloc/100/p0, cash:(100-alloc)/100, eq:[]};
+  var hold = btRun0(alloc,p0);
   var dates = [], fwd = btFwd0([15], ["sell","buy"]), scores = [];
 
   for(var j=start; j<n-1; j++){
@@ -2531,8 +2611,8 @@ function simulate4h(k4, kd, days, alloc, fee, cool){
     var idx = sc===null ? holdIdx(5) : tierFor(sc);
     var idxR = sc===null ? idx : tierRules(sc, "swing", reg, false, null, e50D[d] < e200D[d]).i;
     var info = {score:sc, reg:reg};
-    btExec(runs.regime, idxR, px, fee, cool, t4[j+1], info);
-    btExec(runs.plain,  idx,  px, fee, cool, t4[j+1], info);
+    btExec(runs.regime, idxR, px, fee, cool, t4[j+1], info, tax);
+    btExec(runs.plain,  idx,  px, fee, cool, t4[j+1], info, tax);
     if(sc!==null){
       btFwdAdd(fwd, "all", c4, j, 6);
       if(TIERS[idx].dir !== "hold") btFwdAdd(fwd, TIERS[idx].dir, c4, j, 6);
@@ -2547,6 +2627,7 @@ function simulate4h(k4, kd, days, alloc, fee, cool){
     }
   }
   return { runs:runs, hold:hold, dates:dates, fwd:fwd, from:t4[start], to:t4[n-1], scores:scores, dOf:dOf,
+    tax:tax||0, pxFin:c4[n-2],
     titre:"SWING, 4 heures et journalier", pas:"bougies 4 h", fwdMain:15,
     list:[{lbl:"Règles actuelles du cockpit", court:"Actuel", col:"var(--s1)", run:runs.regime},
           {lbl:"Grille d'origine, avec les ventes", court:"Origine", col:"var(--s2)", run:runs.plain}],
@@ -2585,7 +2666,7 @@ function weeklyFromDaily(time, close){
    Le MVRV Z-score de chaque jour ne connaît que l'histoire jusqu'à ce jour.
    Règle de régime lue sur l'hebdomadaire, comme dans le cockpit. Exécution au prix
    de référence du lendemain : cette série n'a pas de cours d'ouverture. */
-function simulatePosition(S, days, alloc, fee, cool){
+function simulatePosition(S, days, alloc, fee, cool, tax, gate){
   var time = [], close = [], mc = [], mv = [], i;
   for(i=0;i<S.t.length;i++) if(S.px[i] > 0){ time.push(S.t[i]); close.push(S.px[i]); mc.push(S.mc[i]); mv.push(S.mv[i]); }
   var n = close.length;
@@ -2607,7 +2688,8 @@ function simulatePosition(S, days, alloc, fee, cool){
   if(start >= n-1) throw new Error("historique Coin Metrics insuffisant pour ce calcul");
   var p0 = close[start];
   var runs = { actuel:btRun0(alloc,p0), sansExc:btRun0(alloc,p0), sansVente:btRun0(alloc,p0), brut:btRun0(alloc,p0) };
-  var hold = {btc:alloc/100/p0, cash:(100-alloc)/100, eq:[]};
+  if(gate) runs.gate = btRun0(alloc,p0);
+  var hold = btRun0(alloc,p0);
   var dates = [], fwd = btFwd0([30,90,180], ["sell","sellR","buy"]), scores = [];
 
   for(var t=start; t<n-1; t++){
@@ -2627,10 +2709,11 @@ function simulatePosition(S, days, alloc, fee, cool){
     var iB = sc===null ? idx : tierRules(sc, "position", reg, bear, sub, down, true).i;
     var iC = TIERS[iA].dir === "sell" ? holdIdx(sc) : iA;
     var px = close[t+1], when = time[t+1], info = {score:sc, reg:reg};
-    btExec(runs.actuel,    iA,  px, fee, cool, when, info);
-    btExec(runs.sansExc,   iB,  px, fee, cool, when, info);
-    btExec(runs.sansVente, iC,  px, fee, cool, when, info);
-    btExec(runs.brut,      idx, px, fee, cool, when, info);
+    btExec(runs.actuel,    iA,  px, fee, cool, when, info, tax);
+    btExec(runs.sansExc,   iB,  px, fee, cool, when, info, tax);
+    btExec(runs.sansVente, iC,  px, fee, cool, when, info, tax);
+    btExec(runs.brut,      idx, px, fee, cool, when, info, tax);
+    if(gate) btExec(runs.gate, btGated(gate, time[t], iA, sc), px, fee, cool, when, info, tax);
     if(sc!==null){
       btFwdAdd(fwd, "all", close, t, 1);
       if(TIERS[idx].dir !== "hold") btFwdAdd(fwd, TIERS[idx].dir, close, t, 1);
@@ -2642,11 +2725,13 @@ function simulatePosition(S, days, alloc, fee, cool){
     dates.push(time[t]);
   }
   return { runs:runs, hold:hold, dates:dates, fwd:fwd, from:time[start], to:time[n-1], scores:scores, W:W,
+    tax:tax||0, pxFin:close[n-2],
     titre:"POSITION", pas:"jours", fwdMain:90,
     list:[{lbl:"Règles actuelles du cockpit", court:"Actuel", col:"var(--s1)", run:runs.actuel},
           {lbl:"Sans l'exception MVRV", court:"Sans exception", col:"var(--s4)", run:runs.sansExc},
           {lbl:"Sans aucune vente", court:"Sans vente", col:"var(--s5)", run:runs.sansVente},
-          {lbl:"Grille brute, sans règle de régime", court:"Brute", col:"var(--s2)", run:runs.brut}],
+          {lbl:"Grille brute, sans règle de régime", court:"Brute", col:"var(--s2)", run:runs.brut}]
+      .concat(gate ? [{lbl:"Règles actuelles + gate mesurable", court:"Gate", col:"var(--s6)", run:runs.gate}] : []),
     fwdRows:[{key:"sell",  lbl:"Vente (score élevé)", dir:"sell"},
              {key:"sellR", lbl:"Vente retenue par les règles actuelles", dir:"sell"},
              {key:"buy",   lbl:"Achat (score bas)", dir:"buy"}] };
@@ -2802,12 +2887,15 @@ function btRender(R, alloc){
   h += "<div class='hint'>Survole la courbe pour lire les valeurs à une date donnée."+
        (BT_CH.logY ? " Échelle logarithmique : un même écart vertical représente une même multiplication." : "")+"</div></div>";
 
+  var tx = R.tax || 0;
   h += "<div class='card'><h2>Détail chiffré</h2><div class='scroll'><table><thead><tr>"+
        "<th>Variante</th><th style='text-align:right'>Performance</th>"+
        "<th style='text-align:right'>Pire perte</th><th style='text-align:right'>Transactions</th>"+
-       "<th style='text-align:right'>dont ventes</th><th style='text-align:right'>Écart vs conserver</th></tr></thead><tbody>";
-  L.map(function(v){ return [v.lbl, perf(v.run.eq), v.run.eq, v.run.trades, v.col]; })
-   .concat([["Ne rien faire", fC, C.eq, [], "var(--s3)"]]).forEach(function(r){
+       "<th style='text-align:right'>dont ventes</th>"+
+       (tx ? "<th style='text-align:right'>Impôt payé</th><th style='text-align:right'>Net si tout liquidé</th>" : "")+
+       "<th style='text-align:right'>Écart vs conserver</th></tr></thead><tbody>";
+  L.map(function(v){ return [v.lbl, perf(v.run.eq), v.run.eq, v.run.trades, v.col, v.run]; })
+   .concat([["Ne rien faire", fC, C.eq, [], "var(--s3)", C]]).forEach(function(r){
     var ventes = r[3].filter(function(t){ return t.type === "vente"; }).length;
     h += "<tr><td><span class='sw' style='display:inline-block;background:"+r[4]+
          ";margin-right:8px;vertical-align:middle'></span>"+r[0]+"</td>"+
@@ -2815,10 +2903,13 @@ function btRender(R, alloc){
          "<td class='n'>-"+num(maxDD(r[2]),1)+" %</td>"+
          "<td class='n'>"+r[3].length+"</td>"+
          "<td class='n'>"+ventes+"</td>"+
+         (tx ? "<td class='n'>"+num((r[5].impot||0)*100,1)+" pts</td>"+
+               "<td class='n'>"+sgn((btNet(r[5], R.pxFin, tx)/r[2][0]-1)*100,1)+" %</td>" : "")+
          "<td class='n'>"+sgn((r[1]-fC)*100,1)+" pts</td></tr>";
   });
   h += "</tbody></table></div>";
-  h += "<div class='hint'>« Pire perte » = la plus forte chute depuis un sommet du portefeuille. Une grille qui gagne un peu moins mais chute beaucoup moins peut être le meilleur choix.</div></div>";
+  h += "<div class='hint'>« Pire perte » = la plus forte chute depuis un sommet du portefeuille. Une grille qui gagne un peu moins mais chute beaucoup moins peut être le meilleur choix."+
+       (tx ? " <b>Impôt payé</b> : ce que les ventes ont coûté, en points de portefeuille. <b>Net si tout liquidé</b> : la performance une fois déduit l'impôt encore dû sur la plus-value latente — sans cette colonne, le simple report d'impôt de celui qui ne vend jamais passerait pour un gain." : "")+"</div></div>";
 
   var F = R.fwd, M = R.fwdMain, base = {};
   F.h.forEach(function(x){ base[x] = mean(F.all[x]); });
@@ -2877,25 +2968,26 @@ $("btRun").addEventListener("click", function(){
   var days = yrs === "max" ? Infinity : parseInt(yrs,10)*365;
   var alloc = parseInt($("btAlloc").value,10);
   var fee = parseFloat($("btFee").value);
+  var tax = parseFloat($("btTax").value);
   var cool = parseInt($("btCool").value,10);
   var p;
   if(hz === "position"){
     p = cmFetch("PriceUSD,CapMrktCurUSD,CapMVRVCur").then(function(rows){
       status(rows.length+" jours Coin Metrics · simulation en cours…");
-      return btLater(function(){ return simulatePosition(cmSeries(rows), days, alloc, fee, cool); });
+      return btLater(function(){ return simulatePosition(cmSeries(rows), days, alloc, fee, cool, tax); });
     });
   } else if(hz === "swing-4h"){
     p = btFetchKlines("4h", days*6 + 400, function(n){ status(n+" bougies 4 heures récupérées…"); })
       .then(function(k4){
         return btFetchKlines("1d", Infinity, function(n){ status(n+" jours récupérés…"); }).then(function(kd){
           status(k4.length+" bougies 4 heures · simulation en cours…");
-          return btLater(function(){ return simulate4h(k4, kd, days, alloc, fee, cool); });
+          return btLater(function(){ return simulate4h(k4, kd, days, alloc, fee, cool, tax); });
         });
       });
   } else {
     p = btFetchDaily(days).then(function(kl){
       status(kl.length+" bougies · simulation en cours…");
-      return btLater(function(){ return simulate(kl, days, alloc, fee, cool); });
+      return btLater(function(){ return simulate(kl, days, alloc, fee, cool, tax); });
     });
   }
   p.then(function(R){
