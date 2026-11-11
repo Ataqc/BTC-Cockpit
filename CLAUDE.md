@@ -1128,6 +1128,56 @@ règle de régime qui bloquent : **c'est le gate**.
   hors tendance haussière hebdomadaire). À mesurer avant d'en parler, protocole fixé
   d'avance.
 
+### Un gate qui ne reposerait que sur des signaux mesurables (11 novembre 2026)
+
+Rejouable : `node etudes/gate-simplifie.js`. Le gate actuel n'est pas rejouable : il
+n'entre dans aucune comparaison. On compare « aucun gate » — ce que mesurent tous les
+backtests du briefing — à cinq gates construits uniquement sur des signaux
+reconstituables. Seuil 2 = l'équivalent proportionnel du « 3 sur 7 » actuel (43 %).
+
+**Premier test, le plus robuste : le sens du filtrage.** Parmi les achats candidats du
+moteur SWING, rendement moyen à 15 jours de ceux que la variante laisse passer contre
+ceux qu'elle bloque. Un bon gate doit laisser passer les meilleurs.
+
+| Variante | passe | bloque | écart |
+|---|---|---|---|
+| B1 — momentum + funding + flux + premium, seuil 2 | +0,9 % | +0,9 % | **0,0 pt** |
+| B2 — les mêmes, seuil 3 | +1,1 % | +0,9 % | +0,3 pt |
+| B3 — les cinq (avec F&G), seuil 2 | +0,2 % | +2,3 % | **−2,1 pts** |
+| B4 — les cinq, seuil 3 | +0,2 % | +1,2 % | **−1,0 pt** |
+| B5 — momentum + flux + premium, seuil 2 | +0,8 % | +0,5 % | +0,3 pt |
+
+**Toute variante contenant Fear & Greed filtre à l'envers. Celles qui s'en passent ne
+filtrent rien du tout** : zéro à trois dixièmes de point d'écart, c'est du bruit.
+
+**Second test, la performance contre « aucun gate ».** SWING journalier : B1 est neutre
+(−3 / −0 / +1 points sur la fenêtre complète, −2 / +0 / +0 sur la seconde moitié) alors
+qu'il supprime un tiers des achats ; B2 est nettement perdant (−56 / −67 / −68) parce
+qu'il bloque 85 % des achats ; B3 est marginalement positif sur la fenêtre longue
+(+0 / +13 / +17) et neutre ensuite ; B5 perd sur la fenêtre longue et gagne un peu sur
+la seconde moitié. POSITION, cycle 2020-2024 : B1 est le seul à gagner (+9 / +49 / +18),
+B2 et B5 s'effondrent (jusqu'à −151 points), B3 et B4 sont neutres ou négatifs. Sur le
+cycle en cours, toutes les variantes suppriment l'unique vente et finissent au même
+point ou juste en dessous.
+
+**Issue : (b) et (c) du protocole. Aucune variante ne bat « aucun gate » partout → aucune
+règle n'est modifiée.** Et le constat de fond est plus large que prévu : **le gate
+n'apporte rien de mesurable**, dans aucune de ses versions vérifiables. Le meilleur
+candidat, B1, se contente de ne pas nuire.
+
+**Ce qui est donc posé à l'utilisateur, et qui n'est pas une question de performance :**
+le cockpit applique aujourd'hui une règle qui bloque un tiers à deux tiers des actions,
+que **personne ne peut rejouer ni valider**, et dont la seule part mesurable filtre à
+l'envers. Trois options, aucune n'étant soutenue par un gain chiffré :
+1. **Ne rien changer** — assumer une règle invérifiable, au motif qu'un gate ne crée
+   jamais d'action et ne peut donc pas déclencher une bêtise.
+2. **Retirer Fear & Greed** du gate — quatre mesures indépendantes l'accusent, et c'est
+   lui qui retourne le filtrage. Changement minimal, risque faible.
+3. **Remplacer le gate par B1** (momentum, funding, flux, premium ; 2 sur 4) — mesuré
+   neutre, mais le cockpit deviendrait **entièrement rejouable** : le backtest mesurerait
+   enfin la chaîne réelle, y compris l'étape 4. L'argument est méthodologique, pas
+   financier, et il doit être présenté comme tel.
+
 ### Faut-il retirer le côté ACHAT de la table ? (11 novembre 2026)
 
 Rejouable : `node etudes/achats.js`. La question est posée exactement comme elle l'a
@@ -1324,13 +1374,12 @@ a été validé et ce qui ne l'a pas été.
 15. ~~Tester le retrait du côté ACHAT~~ — **fait le 11 novembre 2026** : le retirer
    coûte cher partout, il est conservé. Sa valeur est une discipline d'accumulation,
    pas une prédiction.
-16. **Le chantier qui reste, et le plus important** : le backtest ne mesure pas le
-   cockpit complet, parce qu'il ignore le gate. Or le gate bloque beaucoup, et il
-   filtre à l'envers sur sa part mesurable. Tant qu'on ne sait pas le rejouer, tout
-   chiffre de backtest décrit une chaîne que l'utilisateur n'utilise pas vraiment.
-   Deux issues : trouver un historique gratuit pour l'open interest et le long/short,
-   ou **décider de simplifier le gate** pour qu'il ne repose que sur des signaux
-   mesurables. Décision de l'utilisateur.
+16. **Trancher le sort du gate** — la question est désormais instruite (étude du
+   11 novembre 2026 ci-dessus) : ne rien changer, retirer Fear & Greed, ou le remplacer
+   par les quatre signaux mesurables. Aucune option n'est soutenue par un gain chiffré ;
+   la troisième rendrait le cockpit entièrement rejouable. **Décision de l'utilisateur,
+   et tant qu'elle n'est pas prise, tout chiffre de backtest décrit une chaîne sans
+   l'étape 4 — le dire à chaque fois.**
 
 ---
 
