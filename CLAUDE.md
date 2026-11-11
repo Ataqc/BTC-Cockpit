@@ -82,6 +82,19 @@ ligne elle tombe.**
 - **Hébergement :** GitHub Pages, https://ataqc.github.io/BTC-Cockpit/
   Attention à la casse du chemin (`BTC-Cockpit`). Le backtest est à la même
   adresse, onglet `#backtest` — une seule URL à retenir.
+- **Deux niveaux de lecture, depuis le 11 novembre 2026.** La page s'ouvre en
+  **« Essentiel »** : le verdict d'abord, puis ce qui l'a produit (régime, signaux de
+  confirmation), le bilan de visite et le bloc à copier. Les tableaux d'indicateurs
+  bruts, les saisies, l'historique et les sauvegardes portent la classe `det` et sont
+  masqués ; **« Tout »** les rend visibles, et le choix est gardé par appareil
+  (`btc_niveau`). **Rien n'est jamais supprimé** : c'est de l'affichage, le bloc
+  transmis à l'IA est identique dans les deux modes, et une source muette reste
+  signalée en une ligne sous le prix (`srcLine`), même en « Essentiel ».
+- **Les explications restent, mais repliées.** `replierHints` enveloppe au chargement
+  et après chaque rendu toute `.hint` de plus de 150 caractères dans un
+  `<details class="pourquoi">`. Une ligne cliquable remplace le paragraphe, le texte
+  entier est conservé. Le projet s'interdit d'effacer une explication ou une limite :
+  on la replie, on ne la coupe pas. Une explication courte, elle, reste affichée.
 - **Affichage : rien ne dépasse jamais le bord d'une carte**, à aucune largeur.
   Une étiquette longue se replie sur elle-même, une valeur composée se replie entre
   ses segments « · », une grille ne réclame jamais plus que la largeur de l'écran,
@@ -578,7 +591,7 @@ qu'ils sont dans l'onglet Backtest et nulle part ailleurs.
     et le crochet des moteurs qui rejoue la chaîne entière quand il renvoie un
     décompte. Côté page : les quatre signaux qui votent sont nommés et comptés, les
     cinq autres sont marqués comme contexte.
-  - `tests/page.test.js` (104 vérifications, `jsdom`) : charge `index.html` entière
+  - `tests/page.test.js` (112 vérifications, `jsdom`) : charge `index.html` entière
     avec un faux réseau et vérifie le rendu, les scores, le bloc généré, la
     péremption, la bascule des onglets (par clic et par adresse), un backtest
     complet, le bilan de visite (référence conservée pendant la visite, jamais
@@ -590,7 +603,11 @@ qu'ils sont dans l'onglet Backtest et nulle part ailleurs.
     plateformes dans le 7e signal et dans le bloc, bilan des analyses affiché
     seulement quand il a de quoi être lu. Depuis le 11 novembre 2026 : premium
     Coinbase calculé à partir des deux prix, écrit dans le bloc avec sa source, lu par
-    le 7e signal, et retiré de la liste des métriques lentes manquantes.
+    le 7e signal, et retiré de la liste des métriques lentes manquantes. Depuis la
+    refonte de l'affichage : la page s'ouvre en « Essentiel », le verdict est placé
+    avant le bilan de visite et les sources, les cartes de détail sont marquées, les
+    explications longues sont repliées **sans perdre un mot**, la bascule « Tout »
+    révèle l'intégralité et le choix est gardé sur l'appareil.
   - `tests/robot.test.js` (50 vérifications, zéro dépendance) : période comparée
     par le robot d'alerte, bougie en cours écartée, aucun palier POSITION ni
     aucune vente, alerte réelle sur une chute synthétique, notification sans
@@ -681,6 +698,10 @@ qu'ils sont dans l'onglet Backtest et nulle part ailleurs.
   analyses passées (§6), cockpit en plein écran depuis l'écran d'accueil d'un iPhone,
   prompt d'analyse aligné sur les backtests, étude du gate et calibration du régime
   (§14) — aucune règle de décision modifiée
+- **11 novembre 2026, refonte de l'affichage** : deux niveaux de lecture (§4), verdict
+  en tête de page, explications repliées, état des sources résumé en une ligne. Motif :
+  « on se noie sous les infos ». La page passe de 10 270 à 4 150 pixels de hauteur sur
+  un écran de téléphone, sans qu'une seule information soit supprimée
 - **11 novembre 2026, décision de l'utilisateur** : le gate ne compte plus que les
   **quatre signaux mesurables** (§9) ; Fear & Greed, le croisement prix/OI, le
   long/short, les liquidations et les flux ETF deviennent du contexte. Conséquence
@@ -1632,7 +1653,7 @@ Leçons de ce passage :
    `git config user.name "Ataqc"` et
    `git config user.email "Ataqc@users.noreply.github.com"`.
 4. **Dépendances de test** : `npm ci`, puis `npm test`. Attendu : moteur 246,
-   robot 50, page 104 — **400 vérifications, 0 échec**. Un échec ici veut dire que
+   robot 50, page 112 — **408 vérifications, 0 échec**. Un échec ici veut dire que
    l'environnement diffère : le diagnostiquer avant toute modification.
 5. **Connexion GitHub** : `gh auth status`. Si l'utilisateur n'est pas connecté,
    lui demander de faire lui-même `gh auth login` (navigateur, compte `Ataqc`) —

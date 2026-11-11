@@ -146,6 +146,33 @@ attendre().then(function(){
   ok(bloc.indexOf("undefined") < 0 && bloc.indexOf("NaN") < 0,
      "le bloc ne contient ni « undefined » ni « NaN »");
 
+  /* ---------- deux niveaux de lecture ---------- */
+  ok(doc.body.classList.contains("simple"),
+     "au premier chargement, la page s'ouvre en mode « Essentiel »");
+  var detCartes = doc.querySelectorAll(".card.det");
+  ok(detCartes.length >= 10,
+     "les tableaux bruts, les saisies, l'historique et les sauvegardes sont marqués comme détail");
+  var ordre = doc.getElementById("vCockpit").innerHTML;
+  ok(ordre.indexOf('id="verdict"') < ordre.indexOf('id="visit"') &&
+     ordre.indexOf('id="verdict"') < ordre.indexOf('id="sources"'),
+     "le verdict est placé avant tout le reste : la réponse d'abord");
+  ok(doc.querySelectorAll("details.pourquoi").length >= 8,
+     "les explications longues sont repliées, pas supprimées");
+  var toutesPresentes = true;
+  doc.querySelectorAll("details.pourquoi .hint").forEach(function(h){
+    if(h.textContent.trim().length < 20) toutesPresentes = false;
+  });
+  ok(toutesPresentes, "chaque explication repliée garde son texte entier");
+  function cliquer(id){ doc.getElementById(id).dispatchEvent(new win.Event("click", { bubbles:true })); }
+  cliquer("nivTout");
+  ok(!doc.body.classList.contains("simple") && win.localStorage.getItem("btc_niveau") === "tout",
+     "« Tout » révèle l'intégralité, et le choix est gardé sur l'appareil");
+  cliquer("nivSimple");
+  ok(doc.body.classList.contains("simple") && win.localStorage.getItem("btc_niveau") === "simple",
+     "le retour à « Essentiel » est gardé lui aussi");
+  ok(/source|sources/.test(doc.getElementById("srcLine").textContent),
+     "l'état des sources reste résumé en une ligne, visible même en mode « Essentiel »");
+
   /* ---------- le verdict dit pourquoi l'action est bloquée ---------- */
   var carte = win.verdictCard("TEST", "essai",
     { score:3.05, parts:[], dropped:[], W:100 },

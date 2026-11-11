@@ -136,6 +136,27 @@ footer a{color:var(--acc);text-decoration:none}
 .tab.on{background:var(--acc);color:#fff}
 .tab:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
 
+/* ---- Deux niveaux de lecture ----
+   « Essentiel » cache ce qui n'est pas la réponse : les tableaux d'indicateurs
+   bruts, l'historique, les sauvegardes. Rien n'est supprimé, tout revient d'un
+   clic sur « Tout ». Les explications, elles, ne disparaissent jamais : elles
+   sont repliées, et le projet s'interdit d'effacer une limite. */
+body.simple .det{display:none}
+body:not(.simple) #simpleNote{display:none}
+#simpleNote{margin-top:18px}
+.pourquoi{margin-top:9px}
+.pourquoi>summary{font-size:12.5px;color:var(--acc);cursor:pointer;list-style:none;
+  display:inline-flex;align-items:center;gap:5px;padding:2px 0}
+.pourquoi>summary::-webkit-details-marker{display:none}
+.pourquoi>summary::before{content:"?";display:inline-grid;place-items:center;width:15px;height:15px;
+  border:1px solid currentColor;border-radius:50%;font-size:10.5px;font-weight:700;flex:none}
+.pourquoi>summary:hover{text-decoration:underline}
+.pourquoi[open]>summary{margin-bottom:2px}
+.pourquoi .hint{margin-top:4px}
+.srcline{font-size:12.5px;color:var(--tx3);margin-top:7px;display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.srcline .pastille{width:8px;height:8px;border-radius:50%;background:var(--grn);flex:none}
+.srcline.ko .pastille{background:var(--red)}
+
 /* ---- Backtest ---- */
 select{width:100%;padding:8px 11px;border-radius:8px;border:1px solid var(--bd);
   background:var(--bg);color:var(--tx);font:inherit;font-size:14px}
@@ -192,11 +213,16 @@ td.n .seg{white-space:nowrap}
           <a class="tab on" href="#cockpit" id="tabCockpit" aria-current="page">Cockpit</a>
           <a class="tab" href="#backtest" id="tabBacktest" aria-current="false">Backtest</a>
         </nav>
+        <nav class="tabs" id="niveauBox" aria-label="Niveau de détail">
+          <button class="tab on" id="nivSimple" type="button" aria-pressed="true">Essentiel</button>
+          <button class="tab" id="nivTout" type="button" aria-pressed="false">Tout</button>
+        </nav>
       </div>
       <div class="pricebox" style="margin-top:8px">
         <span class="price" id="px">—</span>
         <span class="chg t-neu" id="chg">—</span>
       </div>
+      <div class="srcline" id="srcLine"><span class="pastille"></span><span>chargement des sources…</span></div>
     </div>
     <div style="display:flex;align-items:center;gap:16px">
       <div class="clock">
@@ -211,24 +237,27 @@ td.n .seg{white-space:nowrap}
 <div class="wrap">
 <div id="vCockpit">
 
+  <h2 style="margin-top:2px">Verdict calculé</h2>
+  <div class="vgrid" id="verdict"></div>
+
+  <div class="banner">
+    <b>Le cockpit ne décide rien.</b> Il applique ta grille à la lettre et dit pourquoi.
+    <details class="pourquoi"><summary>Ce qu'il calcule, et ce qu'il ne fait pas</summary>
+      <div class="hint">Score technique, règle de régime, gate de confirmation, table d'action : tout cela est reproductible, et vérifié à chaque modification par la suite de tests du dépôt. Il ne connaît ni le contexte macro, ni les catalyseurs à venir, ni ce que tu vois sur un graphique. Contester le régime, apporter le contexte et arbitrer entre les horizons restent ton travail et celui de l'IA d'analyse. C'est une proposition chiffrée, jamais un ordre.</div>
+    </details>
+  </div>
+
   <div class="card">
     <h2>Depuis ta dernière visite</h2>
     <div id="visit"><div class="hint">Chargement…</div></div>
     <div class="hint">Comparaison avec ce que le cockpit affichait lors de ta visite précédente, sur cet appareil. Seuls les changements sont signalés : palier d'action, régime, nouvelle divergence, EMA 200, support ou résistance cassé, invalidation touchée, relevé manuel périmé. Actualiser pendant la même visite ne remet pas le compteur à zéro.</div>
   </div>
 
-  <div class="card">
+  <div class="card det">
     <h2>État des sources</h2>
     <div id="sources"></div>
     <div class="hint">Chaque ligne doit être verte. Si une ligne est rouge, la donnée correspondante sera marquée « N/D » dans le bloc final — c'est volontaire, l'analyse ne doit jamais tourner sur un chiffre inventé.</div>
   </div>
-
-  <div class="banner">
-    <b>Ce que le cockpit calcule, et ce qu'il ne fait pas.</b> Il applique ta grille à la lettre : score, règle de régime, gate de confirmation, table d'action. Il ne décide rien et ne connaît ni le contexte macro, ni les catalyseurs à venir, ni ce que tu vois sur un graphique. C'est une proposition chiffrée et reproductible, pas un ordre.
-  </div>
-
-  <h2 style="margin-top:22px">Verdict calculé</h2>
-  <div class="vgrid" id="verdict"></div>
 
   <div class="grid">
 
@@ -245,9 +274,11 @@ td.n .seg{white-space:nowrap}
 
   </div>
 
+  <div class="hint" id="simpleNote">Affichage <b>« Essentiel »</b> : les tableaux d'indicateurs, tes saisies, ton historique et tes sauvegardes sont toujours là — bascule sur <b>« Tout »</b> en haut de page. Rien n'a été supprimé.</div>
+
   <div class="grid">
 
-    <div class="card">
+    <div class="card det">
       <h2>Prix &amp; structure</h2>
       <table>
         <tbody id="tStruct"></tbody>
@@ -255,13 +286,13 @@ td.n .seg{white-space:nowrap}
       <div class="hint">Les moyennes mobiles (EMA) situent le prix par rapport à sa tendance. EMA50 au-dessus de l'EMA200 = structure de fond haussière.</div>
     </div>
 
-    <div class="card">
+    <div class="card det">
       <h2>Supports &amp; résistances</h2>
       <table><tbody id="tLevels"></tbody></table>
       <div class="hint">Ce ne sont pas des niveaux inventés : ce sont des sommets et des creux que le prix a réellement touchés puis quittés, sur les 200 derniers jours. Les niveaux distants de moins de 0,8 % sont regroupés.</div>
     </div>
 
-    <div class="card">
+    <div class="card det">
       <h2>Surachat / survente</h2>
       <table>
         <tbody id="tRsi"></tbody>
@@ -269,7 +300,7 @@ td.n .seg{white-space:nowrap}
       <div class="hint">RSI sous 30 = survente (zone d'achat). Au-dessus de 70 = surachat (zone de vente). Calculé uniquement sur les bougies <b>clôturées</b>.</div>
     </div>
 
-    <div class="card">
+    <div class="card det">
       <h2>MACD</h2>
       <table>
         <tbody id="tMacd"></tbody>
@@ -277,7 +308,7 @@ td.n .seg{white-space:nowrap}
       <div class="hint">Histogramme positif et croissant = momentum haussier. Le croisement de la ligne zéro est le signal le plus suivi.</div>
     </div>
 
-    <div class="card">
+    <div class="card det">
       <h2>Volume</h2>
       <table>
         <tbody id="tVol"></tbody>
@@ -285,7 +316,7 @@ td.n .seg{white-space:nowrap}
       <div class="hint">Un mouvement de prix sans volume au-dessus de sa moyenne est un mouvement peu fiable.</div>
     </div>
 
-    <div class="card">
+    <div class="card det">
       <h2>Dérivés — lecture de risque</h2>
       <table>
         <tbody id="tDeriv"></tbody>
@@ -293,7 +324,7 @@ td.n .seg{white-space:nowrap}
       <div class="hint">Tu ne trades pas les dérivés : ces chiffres servent uniquement à repérer un excès de levier qui menace le Spot.</div>
     </div>
 
-    <div class="card">
+    <div class="card det">
       <h2>Sentiment</h2>
       <table>
         <tbody id="tSent"></tbody>
@@ -303,13 +334,13 @@ td.n .seg{white-space:nowrap}
 
   </div>
 
-  <div class="card">
+  <div class="card det">
     <h2>Bougies en cours (non clôturées)</h2>
     <div id="candles"></div>
     <div class="note warn">Une bougie non clôturée peut encore changer de valeur. C'est la première cause d'écart entre deux sources. Les indicateurs ci-dessus l'excluent systématiquement.</div>
   </div>
 
-  <div class="card">
+  <div class="card det">
     <h2>Ton état de position</h2>
     <div class="fields">
       <div>
@@ -328,7 +359,7 @@ td.n .seg{white-space:nowrap}
     <div class="hint">Enregistré uniquement dans ce navigateur, sur cette machine. Rien n'est envoyé nulle part.</div>
   </div>
 
-  <div class="card">
+  <div class="card det">
     <h2>Métriques lentes</h2>
     <div id="cmBox"><div class="hint">Coin Metrics : chargement…</div></div>
     <div class="note">Le <b>MVRV</b>, le <b>prix réalisé</b> et les <b>flux des plateformes</b> (qui remplacent les réserves) arrivent tout seuls de Coin Metrics, recalculés chaque jour. Les flux ETF et le premium Coinbase n'ont pas de source gratuite en automatique : ils bougent en semaines, pas en heures, les relever une fois par semaine suffit. Laisse vide si tu n'as pas la donnée — elle passera en « N/D ».</div>
@@ -373,7 +404,7 @@ td.n .seg{white-space:nowrap}
     <div class="hint">Au-delà de 10 jours, ces chiffres ne sont plus utilisés : ils repassent en N/D et le signal flux/on-chain devient neutre. Le MVRV de secours aussi : si Coin Metrics est injoignable, le score position est alors recalculé sans lui, sur 60 % du barème. Une donnée vieille de trois semaines n'est pas une donnée, c'est une valeur par défaut qui agit en silence.</div>
   </div>
 
-  <div class="card">
+  <div class="card det">
     <h2>Historique de tes analyses</h2>
     <div class="note">Après avoir obtenu ton analyse, reviens ici et enregistre-la. Le cockpit vérifiera tout seul, sur les vraies bougies, ce que le prix a fait depuis et si un niveau d'invalidation a été touché. C'est ce qui rend ton §0 exact au lieu d'approximatif.</div>
     <div class="fields" style="margin-top:14px">
@@ -399,7 +430,7 @@ td.n .seg{white-space:nowrap}
     <div id="hTable"></div>
   </div>
 
-  <div class="card">
+  <div class="card det">
     <h2>Sauvegarde de tes saisies</h2>
     <div class="note">Tes saisies ne vivent que dans ce navigateur : position, PRU, cash, relevés manuels et historique de tes analyses. Exporte-les dans un fichier pour les retrouver sur un autre appareil, dans un autre navigateur ou après un changement d'ordinateur. <b>Ce fichier contient ta position : garde-le pour toi, et ne le dépose jamais dans le dépôt GitHub, qui est public.</b></div>
     <div class="bar" style="margin-top:14px">
@@ -423,8 +454,11 @@ td.n .seg{white-space:nowrap}
       <button id="regen">Régénérer</button>
       <span id="copied"></span>
     </div>
-    <textarea id="block" readonly></textarea>
-    <div class="hint">Colle ce bloc dans ta conversation d'analyse, juste avant de demander l'analyse. Il contient tous les chiffres horodatés, sourcés, avec les bougies en cours signalées — exactement ce que tes règles de données exigent.</div>
+    <div class="hint" style="margin-top:10px">Colle-le dans ta conversation d'analyse. Tu n'as pas besoin de le lire.</div>
+    <details class="pourquoi" id="blocDet"><summary>Voir le texte envoyé</summary>
+      <textarea id="block" readonly></textarea>
+      <div class="hint">Tous les chiffres y sont horodatés et sourcés, les bougies en cours signalées, et les métriques absentes écrites « N/D » plutôt que devinées. Les signaux qui comptent dans le gate y sont marqués, les autres aussi : l'IA sait donc lesquels elle a le droit d'utiliser pour confirmer une action.</div>
+    </details>
   </div>
 
 </div><!-- /vCockpit -->
@@ -1348,11 +1382,11 @@ function decide(score, horizon, regime, div, opt){
   var G = gateApply(i, score, aligned, opposed);
   if(G.rule === "gate"){
     out.final = G.i; out.capped = true;
-    out.raison = "gate de confirmation : " + aligned + " signal(aux) sur " + nVote +
-                 " dans le sens de l'action, " + GATE_MIN + " sont requis" +
-                 (nd ? " (" + nd + " sans donnée, qui ne confirment rien)" : "");
-    out.steps.push("Gate de confirmation : seulement "+aligned+" signal(aux) sur "+nVote+
-      " dans le sens de l'action ("+GATE_MIN+" requis) → action plafonnée à « Rien »");
+    out.raison = "gate de confirmation : " + aligned + (aligned > 1 ? " signaux" : " signal") +
+                 " sur " + nVote + " dans le sens de l'action, il en faut " + GATE_MIN +
+                 (nd ? " (" + nd + (nd > 1 ? " sont sans donnée" : " est sans donnée") + ", et ne confirme donc rien)" : "");
+    out.steps.push("Gate de confirmation : seulement "+aligned+(aligned > 1 ? " signaux" : " signal")+
+      " sur "+nVote+" dans le sens de l'action ("+GATE_MIN+" requis) → action plafonnée à « Rien »");
     return out;
   }
   out.steps.push("Gate de confirmation franchi : "+aligned+" signaux sur "+nVote+" alignés");
@@ -1485,16 +1519,17 @@ function verdictCard(title, sub, W, dec, regime, div){
          (dec.raison || "voir le détail de la chaîne ci-dessous")+".</div>";
   h += "<div style='margin-top:12px'><table><tbody>";
   h += row("Régime détecté",
-           regime.er!==null ? ("efficience 20 : "+num(regime.er,2)+" · 60 : "+num(regime.er60,2)) : "N/D",
+           regime.er!==null ? ("efficience "+num(regime.er,2)+" / "+num(regime.er60,2)) : "N/D",
            tg([regime.label,regime.cls]));
   var dv = div && div.bear ? "baissière confirmée" : (div && div.bull ? "haussière confirmée" : "aucune");
   h += row("Divergence RSI / prix", dv,
            tg([dv==="aucune"?"aucune":"confirmée", dv==="aucune"?"t-neu":"t-org"]));
   if(dec.aligned!==undefined)
-    h += row("Signaux de confirmation",
-             dec.aligned+" alignés · "+dec.opposed+" contraires (sur "+(dec.nVote||GATE_MIN*2)+" qui confirment)",
+    h += row("Signaux qui confirment",
+             dec.aligned+" pour / "+dec.opposed+" contre, sur "+(dec.nVote||4),
              tg([dec.aligned>=GATE_MIN?"gate franchi":"gate bloquant", dec.aligned>=GATE_MIN?"t-grn":"t-red"]));
   h += "</tbody></table></div>";
+  h += "<div class='hint' data-titre=\"Lire la chaîne de décision\">Les étapes ci-dessous sont appliquées dans cet ordre, sans exception : score, retrait des ventes swing, règle de régime, gate de confirmation, filtre de risque. Chacune peut ramener l'action à « Rien », aucune ne peut l'augmenter.</div>";
   h += "<div class='chain'>";
   dec.steps.forEach(function(s,i){ h += "<div class='step'><b>"+(i+1)+".</b> "+s+"</div>"; });
   h += "</div>";
@@ -1567,6 +1602,22 @@ function drawSources(){
     return '<div class="src"><span class="dot '+st.cls+'"></span><b>'+s.n+'</b>'+
            '<span class="msg">'+st.msg+'</span></div>';
   }).join("");
+  /* Résumé en une ligne, sous le prix : il reste visible quand la carte détaillée
+     est repliée, pour qu'une source muette ne passe jamais inaperçue. */
+  var ko = [], attente = 0;
+  SRC.forEach(function(s){
+    var st = state[s.k];
+    if(!st || st.cls === "wait"){ attente++; return; }
+    if(st.cls === "ko") ko.push(s.n.replace(/&amp;/g, "&").split(" — ")[0]);
+  });
+  var el = $("srcLine");
+  if(!el) return;
+  var txt = attente ? "chargement des données…"
+          : !ko.length ? "toutes les sources répondent"
+          : ko.length + (ko.length > 1 ? " sources incomplètes : " : " source incomplète : ") + ko.join(", ") +
+            " — les valeurs correspondantes passent en N/D";
+  el.className = "srcline" + (ko.length ? " ko" : "");
+  el.innerHTML = "<span class='pastille'></span><span>" + txt + "</span>";
 }
 function row(label,value,tag){
   var v = String(value), cls = "n";
@@ -1862,6 +1913,7 @@ function render(){
   renderHist();
   drawSources();
   buildBlock();
+  replierHints();   /* les blocs rendus perdent leur repli : on le repose */
 }
 
 /* ---------- Historique : affichage ---------- */
@@ -3030,6 +3082,7 @@ function btRender(R, alloc){
   h += "</tbody></table></div></div>";
 
   $("btOut").innerHTML = h;
+  replierHints($("btOut"));
   btWireHover();
 }
 
@@ -3279,9 +3332,54 @@ KEYS.forEach(function(k){
   });
 });
 
+/* ---------- Deux niveaux de lecture ----------
+   « Essentiel » par défaut : la réponse, ce qui l'a produite, et rien d'autre à
+   l'écran. « Tout » rend l'intégralité visible. Le choix est gardé sur l'appareil.
+   Aucune donnée n'est supprimée dans un mode comme dans l'autre : ce n'est que de
+   l'affichage, et le bloc transmis à l'IA est identique. */
+var NIV_KEY = "btc_niveau";
+function setNiveau(n){
+  var simple = n !== "tout";
+  if(simple) document.body.classList.add("simple"); else document.body.classList.remove("simple");
+  $("nivSimple").className = "tab" + (simple ? " on" : "");
+  $("nivTout").className   = "tab" + (simple ? "" : " on");
+  $("nivSimple").setAttribute("aria-pressed", simple ? "true" : "false");
+  $("nivTout").setAttribute("aria-pressed", simple ? "false" : "true");
+  try{ localStorage.setItem(NIV_KEY, simple ? "simple" : "tout"); }catch(e){}
+}
+$("nivSimple").addEventListener("click", function(){ setNiveau("simple"); });
+$("nivTout").addEventListener("click", function(){ setNiveau("tout"); });
+(function(){
+  var v = null;
+  try{ v = localStorage.getItem(NIV_KEY); }catch(e){}
+  setNiveau(v === "tout" ? "tout" : "simple");
+})();
+
+/* Les explications longues ne sont pas supprimées — le projet se l'interdit — mais
+   repliées derrière une seule ligne cliquable. Appelée après chaque rendu, car les
+   blocs réécrits perdent leur repli. */
+function replierHints(racine){
+  var hs = (racine || document).querySelectorAll(".hint");
+  for(var i = 0; i < hs.length; i++){
+    var h = hs[i];
+    if(h.id === "simpleNote") continue;
+    if(h.parentNode && h.parentNode.id === "blocDet") continue;
+    if(h.parentNode && h.parentNode.className === "pourquoi") continue;
+    if(h.textContent.replace(/\s+/g, " ").trim().length < 150) continue;
+    var d = document.createElement("details");
+    d.className = "pourquoi";
+    var s = document.createElement("summary");
+    s.textContent = h.getAttribute("data-titre") || "Comment c'est calculé, et ce que ça ne dit pas";
+    d.appendChild(s);
+    h.parentNode.insertBefore(d, h);
+    d.appendChild(h);
+  }
+}
+
 loadLocal();
 renderManualAge();
 drawSources();
+replierHints();
 loadAll();
 setInterval(function(){
   $("utc").textContent = utcStr(Date.now());
